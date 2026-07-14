@@ -1710,20 +1710,34 @@ st.markdown(
         align-items: flex-start;
         margin-bottom: 0.85rem;
     }
-    .pa-position-blocks {
+    .pa-position-blocks,
+    .st-key-pa_position_blocks,
+    .st-key-maps_position_blocks {
         flex: 1 1 520px;
     }
-    .pa-position-blocks [data-testid="stHorizontalBlock"] {
+    .pa-position-blocks [data-testid="stHorizontalBlock"],
+    .st-key-pa_position_blocks [data-testid="stHorizontalBlock"],
+    .st-key-maps_position_blocks [data-testid="stHorizontalBlock"] {
         gap: 0.35rem;
         align-items: stretch;
     }
-    .pa-position-blocks [data-testid="column"] {
+    .pa-position-blocks [data-testid="column"],
+    .st-key-pa_position_blocks [data-testid="column"],
+    .st-key-maps_position_blocks [data-testid="column"] {
         min-width: 0;
     }
-    .pa-position-blocks [data-testid="stButton"] {
+    .pa-position-blocks [data-testid="stButton"],
+    .st-key-pa_position_blocks [data-testid="stButton"],
+    .st-key-maps_position_blocks [data-testid="stButton"],
+    div[class*="st-key-pa_pos_block_"] [data-testid="stButton"],
+    div[class*="st-key-maps_pos_block_"] [data-testid="stButton"] {
         width: 100%;
     }
-    .pa-position-blocks [data-testid="stButton"] button {
+    .pa-position-blocks [data-testid="stButton"] button,
+    .st-key-pa_position_blocks [data-testid="stButton"] button,
+    .st-key-maps_position_blocks [data-testid="stButton"] button,
+    div[class*="st-key-pa_pos_block_"] button,
+    div[class*="st-key-maps_pos_block_"] button {
         width: 100%;
         min-height: 2.85rem;
         max-height: 2.85rem;
@@ -1738,12 +1752,24 @@ st.markdown(
         border-radius: 10px !important;
         box-shadow: none !important;
     }
-    .pa-position-blocks [data-testid="stButton"] button:hover {
+    .pa-position-blocks [data-testid="stButton"] button:hover,
+    .st-key-pa_position_blocks [data-testid="stButton"] button:hover,
+    .st-key-maps_position_blocks [data-testid="stButton"] button:hover,
+    div[class*="st-key-pa_pos_block_"] button:hover,
+    div[class*="st-key-maps_pos_block_"] button:hover {
         border-color: #3b82f6 !important;
         color: #dbeafe !important;
     }
     .pa-position-blocks [data-testid="stButton"] button[kind="primary"],
-    .pa-position-blocks [data-testid="stButton"] button[data-testid="baseButton-primary"] {
+    .pa-position-blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
+    .st-key-pa_position_blocks [data-testid="stButton"] button[kind="primary"],
+    .st-key-pa_position_blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
+    .st-key-maps_position_blocks [data-testid="stButton"] button[kind="primary"],
+    .st-key-maps_position_blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
+    div[class*="st-key-pa_pos_block_"] button[kind="primary"],
+    div[class*="st-key-maps_pos_block_"] button[kind="primary"],
+    div[class*="st-key-pa_pos_block_"] button[data-testid="baseButton-primary"],
+    div[class*="st-key-maps_pos_block_"] button[data-testid="baseButton-primary"] {
         background: linear-gradient(160deg, #1e3a5f 0%, #172554 100%) !important;
         border-color: #3b82f6 !important;
         color: #dbeafe !important;
@@ -1758,7 +1784,9 @@ st.markdown(
         color: #8fa3bf;
         margin-bottom: 0.15rem;
     }
-    .pa-player-slicer {
+    .pa-player-slicer,
+    .st-key-pa_player_slicer,
+    .st-key-maps_player_slicer {
         flex: 1 1 260px;
         min-width: 220px;
     }
@@ -2635,40 +2663,37 @@ def _render_shared_player_slicers(
 
     pos_col, player_col = st.columns([2.1, 1], gap="medium")
     with pos_col:
-        st.markdown('<div class="pa-position-blocks">', unsafe_allow_html=True)
-        position_codes = _render_position_block_slicer(key_prefix=key_prefix)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(key=f"{key_prefix}_position_blocks"):
+            position_codes = _render_position_block_slicer(key_prefix=key_prefix)
     with player_col:
-        st.markdown('<div class="pa-player-slicer">', unsafe_allow_html=True)
-        options = _player_analysis_options(
-            all_players,
-            progression_by_id,
-            position_codes=position_codes,
-        )
-        if not options:
-            st.info("Nenhum jogador disponível para as posições selecionadas.")
-            st.markdown("</div>", unsafe_allow_html=True)
-            return None
+        with st.container(key=f"{key_prefix}_player_slicer"):
+            options = _player_analysis_options(
+                all_players,
+                progression_by_id,
+                position_codes=position_codes,
+            )
+            if not options:
+                st.info("Nenhum jogador disponível para as posições selecionadas.")
+                return None
 
-        labels = [o[3] for o in options]
-        id_by_label = {o[3]: o[0] for o in options}
-        label_by_id = {o[0]: o[3] for o in options}
+            labels = [o[3] for o in options]
+            id_by_label = {o[3]: o[0] for o in options}
+            label_by_id = {o[0]: o[3] for o in options}
 
-        _sync_player_analysis_selection(players_by_id, label_by_id)
+            _sync_player_analysis_selection(players_by_id, label_by_id)
 
-        select_key = _player_select_widget_key(key_prefix)
-        current_label = st.session_state.get(select_key)
-        if current_label and current_label not in labels:
-            st.session_state.pop(select_key, None)
-        _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
+            select_key = _player_select_widget_key(key_prefix)
+            current_label = st.session_state.get(select_key)
+            if current_label and current_label not in labels:
+                st.session_state.pop(select_key, None)
+            _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
 
-        selected_label = st.selectbox(
-            "Jogador",
-            options=labels,
-            key=select_key,
-            placeholder="Selecione um jogador",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+            selected_label = st.selectbox(
+                "Jogador",
+                options=labels,
+                key=select_key,
+                placeholder="Selecione um jogador",
+            )
 
     if not selected_label:
         st.info("Selecione um jogador para continuar.")
