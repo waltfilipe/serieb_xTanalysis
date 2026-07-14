@@ -1702,7 +1702,7 @@ st.markdown(
         white-space: nowrap;
     }
     section[data-testid="stSidebar"] { display: none; }
-    .pa-shell { max-width: 1380px; margin: 0 auto 1.25rem auto; }
+    .pa-shell { max-width: 1380px; margin: 0.35rem auto 1.25rem auto; }
     .pa-slicer-row {
         display: flex;
         flex-wrap: wrap;
@@ -1713,7 +1713,9 @@ st.markdown(
     .pa-position-blocks,
     .st-key-pa_position_blocks,
     .st-key-maps_position_blocks {
-        flex: 1 1 520px;
+        width: 100%;
+        height: auto !important;
+        min-height: 0 !important;
     }
     .pa-position-blocks [data-testid="stHorizontalBlock"],
     .st-key-pa_position_blocks [data-testid="stHorizontalBlock"],
@@ -1787,8 +1789,22 @@ st.markdown(
     .pa-player-slicer,
     .st-key-pa_player_slicer,
     .st-key-maps_player_slicer {
-        flex: 1 1 260px;
+        width: 100%;
         min-width: 220px;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+    /* Keep slicer columns only as tall as their content */
+    [data-testid="stHorizontalBlock"]:has(.st-key-pa_position_blocks),
+    [data-testid="stHorizontalBlock"]:has(.st-key-maps_position_blocks) {
+        align-items: flex-start !important;
+        margin-bottom: 0.25rem !important;
+    }
+    .st-key-pa_position_blocks [data-testid="stVerticalBlock"],
+    .st-key-maps_position_blocks [data-testid="stVerticalBlock"],
+    .st-key-pa_player_slicer [data-testid="stVerticalBlock"],
+    .st-key-maps_player_slicer [data-testid="stVerticalBlock"] {
+        gap: 0.35rem !important;
     }
     .pa-compare-radar-wrap {
         display: flex;
