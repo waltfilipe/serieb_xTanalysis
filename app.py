@@ -1,4 +1,4 @@
-"""Pass Scout — position ratings and threat pass maps."""
+"""Pass Scout — Série B position ratings and threat pass maps."""
 
 from __future__ import annotations
 
@@ -833,7 +833,7 @@ def _pillar_radar_card_html(player: dict, **kwargs) -> str:
     )
 
 APP_NAME = "Pass Scout"
-APP_LEAGUE = "Premier League"
+APP_LEAGUE = "Série B"
 PRES_DEMO_KEY = "pres_active_demo"
 FONT_AWESOME_CDN = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 PLAYER_ANALYSIS_CARD_HEIGHT_PX = 620
@@ -4366,7 +4366,7 @@ def _render_player_analysis_similarity(
         pool_passes=serie_a_passes,
         target_carries=carries_by_player.get(target_id),
         pool_carries=serie_a_carries,
-        target_league="Premier League",
+        target_league="Série B",
         similar_league="Serie A",
         target_pool_by_pos=sb_by_pos,
         similar_pool_by_pos=sa_by_pos,
@@ -4821,7 +4821,7 @@ def _player_analysis_mock_inner_html() -> str:
     return (
         '<div class="pres-sim-mock">'
         '<div class="pres-sim-mock-head">Player Analysis</div>'
-        '<div class="pres-sim-mock-field">Premier League player · rating profile</div>'
+        '<div class="pres-sim-mock-field">Série B player · rating profile</div>'
         '<div class="pres-sim-mock-field" style="margin-top:0.45rem">Maps tab · Similar - Série A · Comparação</div>'
         '<table class="pres-sim-mock-table"><thead><tr>'
         "<th>#</th><th>Player</th><th>League</th><th>Sim.</th><th>Origin</th>"
@@ -4837,7 +4837,7 @@ def _render_presentation_player_analysis_demo() -> None:
         '<div class="pres-blur-overlay pres-blur-overlay-side">'
         '<div class="pres-blur-caption">'
         "<strong>Player Analysis</strong>"
-        "<p>Start with a clean rating profile for any Premier League player. "
+        "<p>Start with a clean rating profile for any Série B player. "
         "Use the <strong>Maps</strong> tab for full action maps and "
         "<strong>Similar - Série A</strong> / <strong>Comparação</strong> under Player Analysis.</p>"
         "<p style='margin-top:0.45rem'>Comparables are ranked by pass+carry metrics at the same position group. "
