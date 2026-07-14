@@ -1702,247 +1702,6 @@ st.markdown(
         white-space: nowrap;
     }
     section[data-testid="stSidebar"] { display: none; }
-
-    /* ── FMInside-inspired Player Analysis ─────────────────────────────── */
-    .fm-player-page {
-        max-width: 1320px;
-        margin: 0 auto 1.5rem auto;
-        color: #e8eaed;
-    }
-    .fm-header {
-        margin-bottom: 1.1rem;
-        padding-bottom: 0.85rem;
-        border-bottom: 1px solid #2d3139;
-    }
-    .fm-player-name {
-        font-size: 2rem;
-        font-weight: 800;
-        color: #f8fafc;
-        margin: 0 0 0.35rem 0;
-        letter-spacing: -0.02em;
-        line-height: 1.15;
-    }
-    .fm-header-meta {
-        font-size: 0.92rem;
-        color: #9aa0a6;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem 0.75rem;
-        align-items: center;
-    }
-    .fm-league-chip {
-        display: inline-block;
-        font-size: 0.68rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #86efac;
-        background: rgba(34, 197, 94, 0.12);
-        border: 1px solid rgba(34, 197, 94, 0.35);
-        border-radius: 999px;
-        padding: 0.15rem 0.55rem;
-    }
-    .fm-top-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
-        gap: 1rem;
-        margin-bottom: 0.85rem;
-    }
-    @media (max-width: 900px) {
-        .fm-top-grid { grid-template-columns: 1fr; }
-    }
-    .fm-info-card, .fm-rating-card {
-        background: #1a1d23;
-        border: 1px solid #2d3139;
-        border-radius: 10px;
-        padding: 1rem 1.1rem;
-    }
-    .fm-section-title {
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: #9aa0a6;
-        margin: 0 0 0.75rem 0;
-    }
-    .fm-info-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.55rem 1.25rem;
-    }
-    @media (max-width: 640px) {
-        .fm-info-list { grid-template-columns: 1fr; }
-    }
-    .fm-info-item {
-        display: flex;
-        flex-direction: column;
-        gap: 0.12rem;
-        min-width: 0;
-    }
-    .fm-info-label {
-        font-size: 0.72rem;
-        font-weight: 600;
-        color: #6b7280;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .fm-info-value {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #f1f5f9;
-        word-break: break-word;
-    }
-    .fm-origin-wrap {
-        margin-top: 0.85rem;
-        border-top: 1px solid #2d3139;
-        padding-top: 0.75rem;
-    }
-    .fm-origin-wrap img {
-        width: 100%;
-        max-width: 420px;
-        border-radius: 8px;
-        display: block;
-    }
-    .fm-rating-card {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        gap: 0.35rem;
-        min-height: 220px;
-    }
-    .fm-overall-rating {
-        font-size: 3.2rem;
-        font-weight: 900;
-        line-height: 1;
-        color: #f8fafc;
-    }
-    .fm-rating-label {
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #9aa0a6;
-    }
-    .fm-rating-sub {
-        font-size: 0.82rem;
-        color: #94a3b8;
-        margin-top: 0.15rem;
-    }
-    .fm-radar-wrap {
-        width: 100%;
-        max-width: 200px;
-        margin-top: 0.5rem;
-    }
-    .fm-radar-wrap img {
-        width: 100%;
-        height: auto;
-        display: block;
-    }
-    .fm-normalize-note {
-        font-size: 0.78rem;
-        color: #6b7280;
-        margin: 0 0 0.85rem 0;
-        font-style: italic;
-    }
-    .fm-attributes-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.85rem;
-    }
-    @media (max-width: 1100px) {
-        .fm-attributes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 640px) {
-        .fm-attributes-grid { grid-template-columns: 1fr; }
-    }
-    .fm-attr-col {
-        background: #1a1d23;
-        border: 1px solid #2d3139;
-        border-radius: 10px;
-        padding: 0.85rem 0.95rem 0.95rem;
-    }
-    .fm-attr-col h3 {
-        font-size: 0.82rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: #cbd5e1;
-        margin: 0 0 0.7rem 0;
-        padding-bottom: 0.45rem;
-        border-bottom: 1px solid #2d3139;
-    }
-    .fm-attr-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-        gap: 0.45rem;
-        align-items: center;
-        margin-bottom: 0.42rem;
-    }
-    .fm-attr-row:last-child { margin-bottom: 0; }
-    .fm-attr-label {
-        font-size: 0.78rem;
-        color: #cbd5e1;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .fm-attr-bar-wrap {
-        display: flex;
-        align-items: center;
-        gap: 0.35rem;
-    }
-    .fm-attr-bar-track {
-        flex: 1;
-        height: 6px;
-        background: #2d3139;
-        border-radius: 999px;
-        overflow: hidden;
-        min-width: 0;
-    }
-    .fm-attr-bar-fill {
-        height: 100%;
-        border-radius: 999px;
-        transition: width 0.2s ease;
-    }
-    .fm-attr-value {
-        font-size: 0.78rem;
-        font-weight: 800;
-        color: #f1f5f9;
-        text-align: right;
-        min-width: 1.6rem;
-    }
-    .fm-attr-dash {
-        font-size: 0.78rem;
-        color: #4b5563;
-        text-align: right;
-    }
-    .fm-placeholder-panel {
-        background: #1a1d23;
-        border: 1px dashed #3d4450;
-        border-radius: 10px;
-        padding: 2rem 1.25rem;
-        text-align: center;
-        color: #6b7280;
-    }
-    .fm-placeholder-panel strong {
-        display: block;
-        color: #9aa0a6;
-        font-size: 0.95rem;
-        margin-bottom: 0.35rem;
-    }
-    .fm-placeholder-dash {
-        font-size: 1.6rem;
-        font-weight: 300;
-        color: #4b5563;
-        letter-spacing: 0.25em;
-        margin: 0.5rem 0;
-    }
-
     .pa-shell { max-width: 1380px; margin: 0 auto 1.25rem auto; }
     .pa-slicer-row {
         display: flex;
@@ -3925,245 +3684,6 @@ def _build_player_analysis_pillars_html(
     return "".join(groups)
 
 
-def _fm_bar_color(value: int) -> str:
-    if value >= 80:
-        return "#2ecc71"
-    if value >= 60:
-        return "#7dce4a"
-    if value >= 40:
-        return "#f1c40f"
-    if value >= 20:
-        return "#e67e22"
-    return "#e74c3c"
-
-
-def _fm_percentile_0_99(player: dict, key: str) -> int | None:
-    metric_ranks = player.get("metric_ranks")
-    if not isinstance(metric_ranks, dict):
-        return None
-    info = metric_ranks.get(key)
-    if not info:
-        return None
-    rank = int(info.get("rank", 0))
-    total = int(info.get("total", 0))
-    if total <= 0 or rank <= 0:
-        return None
-    return max(1, min(99, int(round(((total - rank + 1) / total) * 99))))
-
-
-def _fm_attr_row_html(label: str, value: int | None, *, tooltip: str = "") -> str:
-    label_html = (
-        f'<span class="fm-attr-label" title="{html.escape(tooltip)}">{html.escape(label)}</span>'
-    )
-    if value is None:
-        return (
-            '<div class="fm-attr-row">'
-            f"{label_html}"
-            '<span class="fm-attr-dash">—</span>'
-            "</div>"
-        )
-    color = _fm_bar_color(value)
-    return (
-        '<div class="fm-attr-row">'
-        f"{label_html}"
-        '<div class="fm-attr-bar-wrap">'
-        f'<div class="fm-attr-bar-track"><div class="fm-attr-bar-fill" style="width:{value}%;background:{color};"></div></div>'
-        f'<span class="fm-attr-value">{value}</span>'
-        "</div>"
-        "</div>"
-    )
-
-
-FM_TECHNICAL_KEYS: tuple[tuple[str, str], ...] = (
-    ("impact_passes_p90", "Threat Passes"),
-    ("impact_per_pass", "Impact / Pass"),
-    ("construction_aip_p90", "Build-up Threat"),
-    ("aggression_aip_p90", "Progressive Threat"),
-    ("dist_short_impact_p90", "Short Threat"),
-    ("dist_medium_impact_p90", "Medium Threat"),
-    ("dist_long_impact_p90", "Long Threat"),
-)
-
-FM_MENTAL_KEYS: tuple[tuple[str, str], ...] = (
-    ("risk_passes_p90", "Risk Passes"),
-    ("risk_pass_pct", "Risk Rate"),
-    ("positive_dxt_pct", "Positive ΔxT"),
-    ("carry_positive_dxt_pct", "Carry ΔxT+"),
-    ("carry_threat_carry_pct", "Threat Carries"),
-)
-
-FM_PHYSICAL_KEYS: tuple[tuple[str, str], ...] = (
-    ("carry_impact_passes_p90", "Carry Threat"),
-    ("carry_dxt_per_pass", "Carry Impact"),
-    ("carry_carries_impact_to_box_p90", "Box Carries"),
-    ("carry_dribbles_final_third_p90", "Final Third Dribbles"),
-)
-
-FM_SET_PIECE_KEYS: tuple[tuple[str, str], ...] = (
-    ("key_passes", "Key Passes"),
-    ("crosses_total", "Crosses"),
-    ("long_balls", "Long Balls"),
-    ("passes_to_box", "Passes to Box"),
-)
-
-
-def _fm_info_item_html(label: str, value: str) -> str:
-    return (
-        '<li class="fm-info-item">'
-        f'<span class="fm-info-label">{html.escape(label)}</span>'
-        f'<span class="fm-info-value">{value}</span>'
-        "</li>"
-    )
-
-
-def _fm_foot_strength_html(player: dict) -> tuple[str, str]:
-    foot = str(player.get("dominant_foot") or "—").strip()
-    if foot.lower() in {"left", "esquerdo", "l"}:
-        return "100", "35"
-    if foot.lower() in {"right", "direito", "r"}:
-        return "35", "100"
-    if foot.lower() in {"both", "ambidestro"}:
-        return "75", "75"
-    return "—", "—"
-
-
-def _fm_attr_column_html(
-    title: str,
-    keys: tuple[tuple[str, str], ...],
-    player: dict,
-    *,
-    label_fn,
-    tooltip_fn,
-    placeholder: bool = False,
-) -> str:
-    rows = []
-    for key, short_label in keys:
-        if placeholder:
-            rows.append(_fm_attr_row_html(short_label, None))
-            continue
-        pct = _fm_percentile_0_99(player, key)
-        tip = tooltip_fn(key) if tooltip_fn else ""
-        label = label_fn(key) if label_fn else short_label
-        rows.append(_fm_attr_row_html(label, pct, tooltip=tip))
-    return (
-        f'<div class="fm-attr-col"><h3>{html.escape(title)}</h3>'
-        f'{"".join(rows)}</div>'
-    )
-
-
-def _build_fminside_player_layout_html(
-    player: dict,
-    *,
-    origin_heatmap_b64: str | None = None,
-    label_fn=pg_analyst_metric_label,
-    tooltip_fn=pg_metric_tooltip,
-    scout_section_specs=PROGRESSION_SCOUT_SECTION_SPECS,
-    pillar_labels: dict[str, str] | None = None,
-    confidence_minutes: float = RATING_CONFIDENCE_MINUTES,
-    confidence_passes: float = RATING_CONFIDENCE_PASSES,
-    **_,
-) -> str:
-    search_pos = sim.player_search_position(player)
-    group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
-    left_foot, right_foot = _fm_foot_strength_html(player)
-
-    age_val = player.get("age")
-    age_str = html.escape(str(int(age_val))) if age_val is not None else "—"
-    height_val = player.get("height")
-    height_str = html.escape(str(height_val)) if height_val else "—"
-
-    info_items = [
-        _fm_info_item_html("Name", html.escape(str(player.get("player_name", "—")))),
-        _fm_info_item_html("Age", age_str),
-        _fm_info_item_html("Position(s)", html.escape(str(player.get("position", "—")))),
-        _fm_info_item_html("Role group", html.escape(group_label)),
-        _fm_info_item_html("Left foot", left_foot),
-        _fm_info_item_html("Right foot", right_foot),
-        _fm_info_item_html("Height", height_str),
-        _fm_info_item_html("Team", html.escape(str(player.get("team", "—")))),
-    ]
-    info_html = f'<ul class="fm-info-list">{"".join(info_items)}</ul>'
-
-    origin_block = ""
-    if origin_heatmap_b64:
-        origin_block = (
-            '<div class="fm-origin-wrap">'
-            '<p class="fm-section-title">Action origins</p>'
-            f'<img src="data:image/png;base64,{origin_heatmap_b64}" alt="Pass and carry origin heatmap" />'
-            "</div>"
-        )
-
-    rating_val = player.get("progression_rating")
-    if rating_val is not None:
-        rating_display = f"{float(rating_val) * 10.0:.1f}"
-    else:
-        rating_display = "—"
-
-    radar_block = ""
-    try:
-        radar_b64 = _pillar_radar_b64(
-            player,
-            scout_section_specs=scout_section_specs,
-            metric_keys=_progression_radar_metric_keys(scout_section_specs),
-            pillar_labels=pillar_labels,
-            confidence_minutes=confidence_minutes,
-            confidence_passes=confidence_passes,
-            line_color=PA_RADAR_PASS_COLOR,
-            fill_color=PA_RADAR_FILL_NEUTRAL,
-        )
-        if radar_b64:
-            radar_block = (
-                f'<div class="fm-radar-wrap">'
-                f'<img src="data:image/png;base64,{radar_b64}" alt="Pillar radar" />'
-                "</div>"
-            )
-    except Exception:
-        pass
-
-    rating_card = (
-        '<div class="fm-rating-card">'
-        f'<div class="fm-overall-rating">{html.escape(rating_display)}</div>'
-        '<div class="fm-rating-label">Overall xT</div>'
-        f'<div class="fm-rating-sub">{html.escape(str(player.get("position", "—")))} · {html.escape(group_label)}</div>'
-        f"{radar_block}"
-        "</div>"
-    )
-
-    technical_col = _fm_attr_column_html(
-        "Technical", FM_TECHNICAL_KEYS, player, label_fn=label_fn, tooltip_fn=tooltip_fn,
-    )
-    mental_col = _fm_attr_column_html(
-        "Mental", FM_MENTAL_KEYS, player, label_fn=label_fn, tooltip_fn=tooltip_fn,
-    )
-    physical_col = _fm_attr_column_html(
-        "Physical", FM_PHYSICAL_KEYS, player, label_fn=label_fn, tooltip_fn=tooltip_fn,
-    )
-    set_pieces_col = _fm_attr_column_html(
-        "Set Pieces", FM_SET_PIECE_KEYS, player, label_fn=label_fn, tooltip_fn=tooltip_fn,
-        placeholder=True,
-    )
-
-    return (
-        '<div class="fm-player-page">'
-        '<div class="fm-header">'
-        f'<h1 class="fm-player-name">{html.escape(str(player.get("player_name", "—")))}</h1>'
-        '<div class="fm-header-meta">'
-        f'<span>{html.escape(str(player.get("team", "—")))}</span>'
-        f'<span>·</span><span>{html.escape(str(player.get("position", "—")))}</span>'
-        f'<span>·</span><span>{html.escape(group_label)}</span>'
-        f'<span class="fm-league-chip">{html.escape(APP_LEAGUE)}</span>'
-        "</div></div>"
-        '<div class="fm-top-grid">'
-        f'<div class="fm-info-card"><p class="fm-section-title">Player info</p>{info_html}{origin_block}</div>'
-        f"{rating_card}"
-        "</div>"
-        '<p class="fm-normalize-note">All stats normalized 0–99 within position group (xT model).</p>'
-        '<div class="fm-attributes-grid">'
-        f"{technical_col}{mental_col}{physical_col}{set_pieces_col}"
-        "</div></div>"
-    )
-
-
 def _build_player_analysis_layout_html(
     player: dict,
     *,
@@ -4180,15 +3700,50 @@ def _build_player_analysis_layout_html(
     rating_key: str = "progression_rating",
     rating_slot_fn=None,
 ) -> str:
-    return _build_fminside_player_layout_html(
+    metric_ranks = player.get("metric_ranks") if isinstance(player.get("metric_ranks"), dict) else {}
+    layout_style = f"--pa-card-h: {PLAYER_ANALYSIS_CARD_HEIGHT_PX}px;"
+    rating_panel = _player_analysis_rating_panel_html(player, metric_ranks)
+    radar_card = _pillar_radar_card_html(
+        player,
+        scout_section_specs=scout_section_specs,
+        metric_keys=_progression_radar_metric_keys(scout_section_specs),
+        pillar_labels=pillar_labels,
+        confidence_minutes=confidence_minutes,
+        confidence_passes=confidence_passes,
+        line_color=PA_RADAR_PASS_COLOR,
+        fill_color=PA_RADAR_FILL_NEUTRAL,
+    )
+    left_card = _build_player_analysis_left_card_html(
         player,
         origin_heatmap_b64=origin_heatmap_b64,
         label_fn=label_fn,
         tooltip_fn=tooltip_fn,
-        scout_section_specs=scout_section_specs,
-        pillar_labels=pillar_labels,
-        confidence_minutes=confidence_minutes,
-        confidence_passes=confidence_passes,
+        rank_in_group_fn=rank_in_group_fn,
+        fmt_pct_fn=fmt_pct_fn,
+        fmt_stat_fn=fmt_stat_fn,
+    )
+    pillar_html = _build_player_analysis_pillars_html(
+        player,
+        scout_section_specs,
+        label_fn=label_fn,
+        tooltip_fn=tooltip_fn,
+        rank_in_group_fn=rank_in_group_fn,
+        fmt_pct_fn=fmt_pct_fn,
+        fmt_stat_fn=fmt_stat_fn,
+    )
+    return (
+        f'<div class="pa-layout" style="{layout_style}">'
+        f'<div class="pa-col pa-col-identity">{left_card}</div>'
+        '<div class="pa-col pa-col-score">'
+        '<div class="pa-score-stack">'
+        f"{rating_panel}"
+        f"{radar_card}"
+        "</div>"
+        "</div>"
+        '<div class="pa-col pa-col-pillars">'
+        f'<div class="player-card pa-pillars-card"><div class="pa-pillars-stack">{pillar_html}</div></div>'
+        "</div>"
+        "</div>"
     )
 
 
@@ -4743,30 +4298,6 @@ def _prepare_sb_to_sa_similarity_context(
     )
 
 
-def _render_similarity_placeholder() -> None:
-    st.markdown(
-        '<div class="fm-placeholder-panel">'
-        "<strong>Similaridade entre ligas</strong>"
-        "<p>Base de referência ainda não carregada neste repositório.</p>"
-        '<div class="fm-placeholder-dash">— — —</div>'
-        "<p style='font-size:0.82rem;margin:0;'>xStats · Stats p90 · Origin</p>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-
-def _render_comparison_placeholder() -> None:
-    st.markdown(
-        '<div class="fm-placeholder-panel">'
-        "<strong>Comparação head-to-head</strong>"
-        "<p>Disponível após carregar a base de similaridade.</p>"
-        '<div class="fm-placeholder-dash">— — —</div>'
-        "<p style='font-size:0.82rem;margin:0;'>Métricas xT · Percentis · Radar</p>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-
 def _render_player_analysis_similarity(
     target_id: str,
     *,
@@ -4776,8 +4307,80 @@ def _render_player_analysis_similarity(
     all_players: list[dict],
     pick_key: str = "pa_similar_pick",
 ) -> None:
-    _ = (target_id, passes_by_player, carries_by_player, carries_players_sb, all_players, pick_key)
-    _render_similarity_placeholder()
+    with st.spinner("Loading Serie A reference pool…"):
+        context = _prepare_sb_to_sa_similarity_context(all_players, carries_players_sb)
+    if context is None:
+        st.warning(
+            "Serie A data unavailable — confirm season_all_brfull.csv and redeploy the app."
+        )
+        return
+
+    serie_a_passes, serie_a_carries, players_sb_by_id, sa_by_pos, sb_by_pos, sb_pass_by_id, sb_carry_by_id, sa_pass_by_id, sa_carry_by_id = context
+    if target_id not in players_sb_by_id:
+        st.warning("Selected player is not available for similarity.")
+        return
+
+    target_player = dict(players_sb_by_id[target_id])
+    search_pos = sim.player_search_position(target_player)
+    if not search_pos:
+        st.warning("Invalid position for comparison (goalkeepers are excluded).")
+        return
+
+    pool = sim.similarity_search_pool(sa_by_pos, search_pos)
+    pool_label = f"Serie A · {sim.similarity_position_label(search_pos)}"
+    if not pool:
+        st.warning(
+            f"No eligible Serie A players at **{html.escape(sim.similarity_position_label(search_pos))}**."
+        )
+        return
+
+    st.markdown(
+        f'<p class="pa-similar-caption">Top {SIMILARITY_TOP_K} Serie A players in '
+        f"<strong>{html.escape(pool_label)}</strong> ({len(pool)} eligible, "
+        f"≥{int(sim.SIMILARITY_MIN_MINUTES_PCT * 100)}% minutes). "
+        "Ranked by xStats (xT metrics); Stats p90 compares traditional volume; "
+        "Origin reflects shared start locations. Click a row to compare.</p>",
+        unsafe_allow_html=True,
+    )
+    results = sim.find_similar_option_c(target_player, pool, top_k=SIMILARITY_TOP_K)
+    results = sim.attach_traditional_p90_similarity(
+        results,
+        target_player,
+        pool,
+        target_pass_by_id=sb_pass_by_id,
+        target_carry_by_id=sb_carry_by_id,
+        pool_pass_by_id=sa_pass_by_id,
+        pool_carry_by_id=sa_carry_by_id,
+    )
+    results = sim.attach_pass_origin_similarity(
+        results,
+        passes_by_player.get(target_id),
+        serie_a_passes,
+        target_carries=carries_by_player.get(target_id),
+        carries_by_id=serie_a_carries,
+    )
+    _render_similarity_results_tab(
+        results=results,
+        target=target_player,
+        target_passes=passes_by_player.get(target_id),
+        pool_passes=serie_a_passes,
+        target_carries=carries_by_player.get(target_id),
+        pool_carries=serie_a_carries,
+        target_league="Série B",
+        similar_league="Serie A",
+        target_pool_by_pos=sb_by_pos,
+        similar_pool_by_pos=sa_by_pos,
+        pick_key=pick_key,
+        include_origin=False,
+        origin_column=True,
+        traditional_column=True,
+        html_table=True,
+    )
+    with st.expander("Metrics used in similarity"):
+        st.markdown("**xStats (xT)**")
+        st.write(", ".join(sim.similarity_metric_label(k) for k in sim.SIMILARITY_METRICS_A))
+        st.markdown("**Stats p90 (traditional)**")
+        st.write(", ".join(pge.METRIC_LABELS.get(k, k) for k in sim.SIMILARITY_TRADITIONAL_METRICS))
 
 
 def render_maps_section(
@@ -4922,11 +4525,22 @@ def render_player_analysis_section(
     if st.query_params.get("similar_idx") is not None or st.query_params.get("pa_similar") == "1":
         st.session_state[PLAYER_ANALYSIS_SHOW_SIMILAR_KEY] = True
 
-    similar_tab, compare_tab = st.tabs(["Similaridade", "Comparação"])
+    similar_tab, compare_tab = st.tabs(["Similar - Série A", "Comparação"])
     with similar_tab:
-        _render_similarity_placeholder()
+        _render_player_analysis_similarity(
+            player_id,
+            passes_by_player=passes_by_player,
+            carries_by_player=carries_by_player,
+            carries_players_sb=carries_players,
+            all_players=all_players,
+            pick_key=PLAYER_ANALYSIS_SIMILAR_PICK_KEY,
+        )
     with compare_tab:
-        _render_comparison_placeholder()
+        _render_player_comparison_panel(
+            player,
+            all_players=all_players,
+            progression_by_id=progression_by_id,
+        )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -5207,7 +4821,7 @@ def _player_analysis_mock_inner_html() -> str:
     return (
         '<div class="pres-sim-mock">'
         '<div class="pres-sim-mock-head">Player Analysis</div>'
-        '<div class="pres-sim-mock-field">Premier League player · rating profile</div>'
+        '<div class="pres-sim-mock-field">Série B player · rating profile</div>'
         '<div class="pres-sim-mock-field" style="margin-top:0.45rem">Maps tab · Similar - Série A · Comparação</div>'
         '<table class="pres-sim-mock-table"><thead><tr>'
         "<th>#</th><th>Player</th><th>League</th><th>Sim.</th><th>Origin</th>"
@@ -5223,7 +4837,7 @@ def _render_presentation_player_analysis_demo() -> None:
         '<div class="pres-blur-overlay pres-blur-overlay-side">'
         '<div class="pres-blur-caption">'
         "<strong>Player Analysis</strong>"
-        "<p>Start with a clean rating profile for any Premier League player. "
+        "<p>Start with a clean rating profile for any Série B player. "
         "Use the <strong>Maps</strong> tab for full action maps and "
         "<strong>Similar - Série A</strong> / <strong>Comparação</strong> under Player Analysis.</p>"
         "<p style='margin-top:0.45rem'>Comparables are ranked by pass+carry metrics at the same position group. "
