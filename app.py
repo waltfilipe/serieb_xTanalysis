@@ -2575,7 +2575,7 @@ def _position_blocks_for_player(player: dict) -> set[str]:
 def _render_position_block_slicer(*, key_prefix: str = "pa") -> frozenset[str]:
     state_key = PLAYER_ANALYSIS_POSITION_BLOCKS_KEY
     if state_key not in st.session_state:
-        st.session_state[state_key] = {block_id for block_id, _, _ in PLAYER_ANALYSIS_POSITION_BLOCKS}
+        st.session_state[state_key] = set()
 
     selected: set[str] = set(st.session_state[state_key])
     st.markdown('<p class="pa-position-block-label">Posição</p>', unsafe_allow_html=True)
@@ -2589,9 +2589,9 @@ def _render_position_block_slicer(*, key_prefix: str = "pa") -> frozenset[str]:
                 type="primary" if is_selected else "secondary",
                 use_container_width=True,
             ):
-                if is_selected and len(selected) > 1:
+                if is_selected:
                     selected.discard(block_id)
-                elif not is_selected:
+                else:
                     selected.add(block_id)
                 st.session_state[state_key] = selected
                 st.session_state.pop(PLAYER_ANALYSIS_SELECT_KEY, None)
@@ -2599,9 +2599,6 @@ def _render_position_block_slicer(*, key_prefix: str = "pa") -> frozenset[str]:
                 st.session_state.pop(PLAYER_ANALYSIS_COMPARE_KEY, None)
                 st.rerun()
 
-    if not selected:
-        selected = {PLAYER_ANALYSIS_POSITION_BLOCKS[0][0]}
-        st.session_state[state_key] = selected
     return _position_codes_from_blocks(selected)
 
 
@@ -2683,6 +2680,9 @@ def _render_shared_player_slicers(
             position_codes = _render_position_block_slicer(key_prefix=key_prefix)
     with player_col:
         with st.container(key=f"{key_prefix}_player_slicer"):
+            if not position_codes:
+                st.info("Selecione uma ou mais posições para filtrar jogadores.")
+                return None
             options = _player_analysis_options(
                 all_players,
                 progression_by_id,
