@@ -2624,6 +2624,7 @@ def _clear_player_select_widgets() -> None:
     for key in list(st.session_state.keys()):
         if key == PLAYER_ANALYSIS_SELECT_KEY or key.endswith(f"_{PLAYER_ANALYSIS_SELECT_KEY}"):
             st.session_state.pop(key, None)
+    st.session_state.pop("map_player_id", None)
 
 
 def _player_analysis_options(
@@ -2702,7 +2703,9 @@ def _render_shared_player_slicers(
             current_label = st.session_state.get(select_key)
             if current_label and current_label not in labels:
                 st.session_state.pop(select_key, None)
-            _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
+                current_label = None
+            if select_key not in st.session_state:
+                _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
 
             selected_label = st.selectbox(
                 "Jogador",
