@@ -109,7 +109,7 @@ PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, st
     ("rb", "Laterais Direitos", frozenset({"RB", "RWB"}), None),
     ("lb", "Laterais Esquerdos", frozenset({"LB", "LWB"}), None),
     ("cm", "Meio-campistas", None, "central_midfielders"),
-    ("am", "Meias ofensivos", None, "attacking_midfielders"),
+    ("am", "Meias avançados", None, "attacking_midfielders"),
     ("lw", "Extremos Esquerdos", frozenset({"LW", "LM", "LCF"}), None),
     ("rw", "Extremos Direitos", frozenset({"RW", "RM", "RCF"}), None),
     ("st", "Atacantes", frozenset({"ST", "CF", "SS"}), None),
@@ -469,10 +469,10 @@ def _style_archetype_pillar_radar_ax(
     ax.set_yticks([4, 5, 6, 7, 8])
     ax.set_yticklabels([])
     ax.set_xticks(angles)
-    ax.set_xticklabels(labels, fontsize=6.8, fontweight=600)
+    ax.set_xticklabels(labels, fontsize=6.5, fontweight=600, linespacing=0.9)
     for tick_label, is_carry in zip(ax.get_xticklabels(), carry_flags):
         tick_label.set_color(PA_RADAR_CARRY_COLOR if is_carry else PA_RADAR_PASS_COLOR)
-    ax.tick_params(axis="x", pad=10)
+    ax.tick_params(axis="x", pad=14)
     ax.grid(color="#334155", alpha=0.45, linewidth=0.6)
     ax.spines["polar"].set_color("#334155")
     ax.spines["polar"].set_alpha(0.55)

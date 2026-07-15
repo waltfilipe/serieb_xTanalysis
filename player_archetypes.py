@@ -33,16 +33,11 @@ PILLAR_METRICS: dict[str, tuple[str, ...]] = {
 }
 
 PILLAR_LABELS: dict[str, str] = {
-    # Threat / value added on passes (xT, StatsBomb OBV-style progression).
-    "prog_passe": "Ameaça no passe",
-    # Risk passes + final-third attacking impact (vertical play).
-    "ousadia": "Verticalidade",
-    # Build-up phase in the first 80% of the pitch (jogo de construção).
-    "construcao": "Construção de jogo",
-    # Ball progression via carries (Hudl/StatsBomb carrying).
-    "conducao": "Condução de bola",
-    # Final-third arrivals and box penetration (deep progressions).
-    "penetracao": "Chegada à área",
+    "prog_passe": "Ameaça\nno passe",
+    "ousadia": "Risco\nno passe",
+    "construcao": "Saída\nno passe",
+    "conducao": "Ameaça\nna condução",
+    "penetracao": "Chegada\nà área",
 }
 
 # Pass-side pillars (blue) vs carry-side pillars (green) on the radar.
@@ -67,8 +62,8 @@ SUPPORTED_POSITION_GROUPS: frozenset[str] = frozenset({
 ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
     "centerbacks": {
         "vertical": {
-            "label": "Vertical",
-            "description": "Avança o jogo no passe com progressão e ousadia.",
+            "label": "Progressor de passe",
+            "description": "Avança o jogo com passes de progressão e ousadia.",
             "style": "vertical",
             "icon": "fa-arrow-trend-up",
             "prototype": {
@@ -80,8 +75,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "condutor": {
-            "label": "Condutor",
-            "description": "Prefere sair conduzindo e progredir com a bola no pé.",
+            "label": "Progressor conduzindo",
+            "description": "Prefere progredir conduzindo a bola no pé.",
             "style": "carry",
             "icon": "fa-person-running",
             "prototype": {
@@ -93,7 +88,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "construtor": {
-            "label": "Construtor",
+            "label": "Construtor de saída",
             "description": "Organiza a saída de bola com construção e passe seguro.",
             "style": "build",
             "icon": "fa-diagram-project",
@@ -108,7 +103,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
     },
     "fullbacks": {
         "condutor": {
-            "label": "Condutor",
+            "label": "Progressor conduzindo",
             "description": "Avança pela linha conduzindo com regularidade.",
             "style": "carry",
             "icon": "fa-person-running",
@@ -121,7 +116,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "construtor": {
-            "label": "Construtor",
+            "label": "Construtor de saída",
             "description": "Organiza o lado com passe e construção, menos overlap.",
             "style": "build",
             "icon": "fa-diagram-project",
@@ -134,8 +129,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "ofensivo": {
-            "label": "Ofensivo",
-            "description": "Chega alto, overlap e penetração no terço final.",
+            "label": "Lateral projetado",
+            "description": "Progride alto pela linha, com overlap e chegada ao terço final.",
             "style": "attack",
             "icon": "fa-bolt",
             "prototype": {
@@ -149,8 +144,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
     },
     "central_midfielders": {
         "regista": {
-            "label": "Regista",
-            "description": "Volante organizador: construção alta e baixo risco.",
+            "label": "Organizador de saída",
+            "description": "Volante que organiza a construção com passe seguro.",
             "style": "build",
             "icon": "fa-compass",
             "prototype": {
@@ -162,7 +157,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "vertical": {
-            "label": "Vertical",
+            "label": "Progressor de passe",
             "description": "Meia que progride no passe com volume e ousadia.",
             "style": "vertical",
             "icon": "fa-arrow-trend-up",
@@ -175,8 +170,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "box_to_box": {
-            "label": "Box-to-box",
-            "description": "Liga defesa e ataque com condução e participação ampla.",
+            "label": "Ligador de jogo",
+            "description": "Liga fases do jogo com condução e participação ampla.",
             "style": "carry",
             "icon": "fa-arrows-left-right",
             "prototype": {
@@ -190,7 +185,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
     },
     "attacking_midfielders": {
         "armador": {
-            "label": "Armador",
+            "label": "Criador de passe",
             "description": "Cria no terço final com passe e visão de jogo.",
             "style": "build",
             "icon": "fa-wand-magic-sparkles",
@@ -203,8 +198,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "meia_vertical": {
-            "label": "Meia vertical",
-            "description": "Ameaça direta com verticalidade e chegada ao terço final.",
+            "label": "Progressor de passe",
+            "description": "Ameaça direta com passes verticais e chegada ao terço final.",
             "style": "vertical",
             "icon": "fa-arrow-trend-up",
             "prototype": {
@@ -216,8 +211,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "chegador": {
-            "label": "Chegador",
-            "description": "Conduz e penetra no campo ofensivo, chegando à área.",
+            "label": "Infiltrador",
+            "description": "Progride com condução no terço final e chegada à área.",
             "style": "attack",
             "icon": "fa-bullseye",
             "prototype": {
@@ -231,7 +226,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
     },
     "wingers": {
         "de_toque": {
-            "label": "De toque",
+            "label": "Associador",
             "description": "Liga o jogo pelos lados, participa da construção.",
             "style": "link",
             "icon": "fa-link",
@@ -244,8 +239,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "direto": {
-            "label": "Direto",
-            "description": "Linha de fundo, condução e jogo vertical pelos lados.",
+            "label": "Progressor direto",
+            "description": "Linha de fundo, condução e progressão vertical pelos lados.",
             "style": "carry",
             "icon": "fa-forward",
             "prototype": {
@@ -257,7 +252,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "criador": {
-            "label": "Criador",
+            "label": "Criador de passe",
             "description": "Cria no último terço com passe e penetração.",
             "style": "attack",
             "icon": "fa-wand-magic-sparkles",
@@ -272,8 +267,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
     },
     "strikers": {
         "referencia": {
-            "label": "Referência",
-            "description": "Perfil de pivô com menor envolvimento na progressão.",
+            "label": "Pivô de apoio",
+            "description": "Referência de apoio com menor volume de progressão.",
             "style": "reference",
             "icon": "fa-anchor",
             "prototype": {
@@ -285,8 +280,8 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "de_ligacao": {
-            "label": "De ligação",
-            "description": "Desce, associa e participa da construção do ataque.",
+            "label": "Ligador de ataque",
+            "description": "Desce, associa e progride na construção do ataque.",
             "style": "link",
             "icon": "fa-link",
             "prototype": {
@@ -298,7 +293,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
         "penetrador": {
-            "label": "Penetrador",
+            "label": "Infiltrador",
             "description": "Chega à área e progride com condução no último terço.",
             "style": "attack",
             "icon": "fa-bullseye",
