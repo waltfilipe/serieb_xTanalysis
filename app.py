@@ -627,7 +627,7 @@ def _archetype_pillar_radar_compare_b64(primary: dict, secondary: dict) -> str:
 
     matplotlib.use("Agg")
 
-    labels, primary_values, prototype_values, carry_flags = _collect_archetype_pillar_radar_data(primary)
+    labels, primary_values, _, carry_flags = _collect_archetype_pillar_radar_data(primary)
     _, secondary_values, _, _ = _collect_archetype_pillar_radar_data(secondary)
     if len(primary_values) < 3 or len(secondary_values) < 3:
         return ""
@@ -639,9 +639,6 @@ def _archetype_pillar_radar_compare_b64(primary: dict, secondary: dict) -> str:
     ax.set_facecolor("none")
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
-
-    if prototype_values:
-        _plot_archetype_silhouette_on_ax(ax, angles, prototype_values)
 
     _plot_archetype_player_on_ax(
         ax,
