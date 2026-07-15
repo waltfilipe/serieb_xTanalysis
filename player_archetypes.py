@@ -268,17 +268,34 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
 
 
 def percentile_to_display_score(pct: float) -> float:
-    """Map 0–100 within-position percentile to radar radius (3.0–9.0)."""
+    """Map 0–100 within-position percentile to radar radius (3.0–9.0).
+
+    Higher percentile (better vs peers) → larger radius. Percentile is inverted
+    to rank because rank 1 is best in rank_to_display_score.
+    """
     import passes_engine as pe
 
     bounded = max(0.0, min(100.0, float(pct)))
-    rank = max(1, min(100, int(round(bounded / 100.0 * 99.0)) + 1))
+    rank = max(1, min(100, int(round((100.0 - bounded) / 100.0 * 99.0)) + 1))
     return float(pe.rank_to_display_score(rank, 100))
+
+
+def prototype_to_display_score(value: float) -> float:
+    """Map archetype prototype pillar weight (0–100) to radar radius (3.0–9.0)."""
+    bounded = max(0.0, min(100.0, float(value)))
+    return 3.0 + (bounded / 100.0) * 6.0
 
 
 def pillar_display_scores(pillar_pct: dict[str, float] | None) -> list[float]:
     return [
         percentile_to_display_score(pillar_pct.get(key, 50.0))
+        for key in PILLAR_KEYS
+    ]
+
+
+def prototype_display_scores(prototype: dict[str, float] | None) -> list[float]:
+    return [
+        prototype_to_display_score(prototype.get(key, 50.0))
         for key in PILLAR_KEYS
     ]
 

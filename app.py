@@ -446,7 +446,7 @@ def _collect_archetype_pillar_radar_data(
     values = pa_arch.pillar_display_scores(pillar_pct)
     prototype_pct = player.get("player_archetype_prototype_pct")
     prototype_values = (
-        pa_arch.pillar_display_scores(prototype_pct)
+        pa_arch.prototype_display_scores(prototype_pct)
         if isinstance(prototype_pct, dict) and prototype_pct
         else []
     )
