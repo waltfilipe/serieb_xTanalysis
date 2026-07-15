@@ -10,6 +10,7 @@ import numpy as np
 import carries_engine as ce
 import passes_engine as pe
 from heuristic_scoring import POSITION_GROUPS_ORDER
+from player_archetypes import assign_player_archetype, attach_player_archetypes
 
 DATA_CACHE_VERSION = max(pe.DATA_CACHE_VERSION, ce.DATA_CACHE_VERSION)
 DUAL_ELITE_PERCENTILE = 90.0
@@ -1058,6 +1059,16 @@ def compute_progression_ratings(
         carry_by_id=carry_by_id,
     )
     rated_pool = [players_by_id[str(p["player_id"])] for p in rated_pool if str(p["player_id"]) in players_by_id]
+    rated_pool = attach_player_archetypes(rated_pool)
+    rated_by_id = {str(p["player_id"]): p for p in rated_pool}
+    players_by_id = {
+        pid: rated_by_id.get(pid, player)
+        for pid, player in players_by_id.items()
+    }
+    pool_by_position = {
+        group: [players_by_id[str(p["player_id"])] for p in pool if str(p["player_id"]) in players_by_id]
+        for group, pool in pool_by_position.items()
+    }
 
     return rated_pool, players_by_id, pool_by_position
 
@@ -1066,7 +1077,12 @@ def rate_progression_player_vs_eligible_pool(player: dict, eligible_pool: list[d
     with _progression_rating_context():
         rated = pe.rate_player_vs_eligible_pool(player, eligible_pool)
     rated = _rename_progression_rating_fields(rated)
-    return rated
+    position_group = str(player.get("position_group") or "")
+    position_pool = [
+        p for p in eligible_pool
+        if str(p.get("position_group") or "") == position_group
+    ] or eligible_pool
+    return {**rated, **assign_player_archetype(rated, position_pool)}
 
 
 POSITION_GROUPS_ORDER = POSITION_GROUPS_ORDER

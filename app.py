@@ -292,6 +292,25 @@ def fmt_rating_percentile(player: dict) -> str:
     return f"P{int(round(float(pct) * 100))}"
 
 
+def _player_archetype_html(player: dict) -> str:
+    label = player.get("player_archetype_label")
+    if not label:
+        return ""
+    description = html.escape(str(player.get("player_archetype_description") or label))
+    style = html.escape(str(player.get("player_archetype_style") or "default"))
+    icon = html.escape(str(player.get("player_archetype_icon") or "fa-user"))
+    safe_label = html.escape(str(label))
+    return (
+        '<span class="pa-archetype-tip">'
+        f'<span class="pa-archetype-pill pa-archetype-{style}">'
+        f'<i class="fa-solid {icon}" aria-hidden="true"></i>'
+        f"<span>{safe_label}</span>"
+        "</span>"
+        f'<span class="pa-archetype-tipbox">{description}</span>'
+        "</span>"
+    )
+
+
 def _rating_badges_html(player: dict) -> str:
     badges: list[str] = []
     if player.get("rating_pareto_badge"):
@@ -789,8 +808,10 @@ def _render_player_comparison_panel(
     if b64:
         legend = (
             '<div class="pa-compare-legend">'
-            f'<span class="pa-compare-legend-primary">{html.escape(str(primary.get("player_name", "A")))}</span>'
-            f'<span class="pa-compare-legend-secondary">{html.escape(str(compare_player.get("player_name", "B")))}</span>'
+            f'<span class="pa-compare-legend-primary">{html.escape(str(primary.get("player_name", "A")))}'
+            f'{_player_archetype_html(primary)}</span>'
+            f'<span class="pa-compare-legend-secondary">{html.escape(str(compare_player.get("player_name", "B")))}'
+            f'{_player_archetype_html(compare_player)}</span>'
             "</div>"
         )
         radar = (
@@ -2032,6 +2053,95 @@ st.markdown(
         color: #cbd5e1;
         font-size: 0.72rem;
         font-weight: 600;
+    }
+    .pa-archetype-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.1rem;
+    }
+    .pa-archetype-tip {
+        position: relative;
+        display: inline-flex;
+    }
+    .pa-archetype-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.28rem 0.62rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    .pa-archetype-pill i {
+        font-size: 0.72rem;
+        opacity: 0.92;
+    }
+    .pa-archetype-build {
+        color: #bfdbfe;
+        background: rgba(37, 99, 235, 0.16);
+        border-color: rgba(96, 165, 250, 0.45);
+    }
+    .pa-archetype-vertical {
+        color: #fde68a;
+        background: rgba(217, 119, 6, 0.16);
+        border-color: rgba(245, 158, 11, 0.45);
+    }
+    .pa-archetype-carry {
+        color: #a7f3d0;
+        background: rgba(5, 150, 105, 0.16);
+        border-color: rgba(52, 211, 153, 0.45);
+    }
+    .pa-archetype-attack {
+        color: #e9d5ff;
+        background: rgba(124, 58, 237, 0.16);
+        border-color: rgba(167, 139, 250, 0.45);
+    }
+    .pa-archetype-link {
+        color: #cbd5e1;
+        background: rgba(71, 85, 105, 0.22);
+        border-color: rgba(148, 163, 184, 0.4);
+    }
+    .pa-archetype-reference {
+        color: #94a3b8;
+        background: rgba(51, 65, 85, 0.28);
+        border-color: rgba(100, 116, 139, 0.45);
+    }
+    .pa-archetype-tipbox {
+        display: none;
+        position: absolute;
+        left: 0;
+        top: calc(100% + 0.35rem);
+        z-index: 20;
+        min-width: 12rem;
+        max-width: 16rem;
+        padding: 0.45rem 0.55rem;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #cbd5e1;
+        font-size: 0.72rem;
+        font-weight: 500;
+        line-height: 1.35;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .pa-archetype-tip:hover .pa-archetype-tipbox,
+    .pa-archetype-tip:focus-within .pa-archetype-tipbox {
+        display: block;
+    }
+    .pa-compare-legend .pa-archetype-pill {
+        font-size: 0.64rem;
+        padding: 0.16rem 0.42rem;
+        margin-left: 0.25rem;
+        vertical-align: middle;
+    }
+    .pa-compare-legend .pa-archetype-tipbox {
+        min-width: 10rem;
     }
     .pa-identity-badges {
         display: inline-flex;
@@ -3722,8 +3832,12 @@ def _build_player_analysis_left_card_html(
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
     badges = _rating_badges_html(player)
+    archetype_html = _player_archetype_html(player)
     badges_block = (
         f'<div class="pa-identity-badges">{badges}</div>' if badges else ""
+    )
+    archetype_block = (
+        f'<div class="pa-archetype-row">{archetype_html}</div>' if archetype_html else ""
     )
 
     profile_lines = []
@@ -3762,6 +3876,7 @@ def _build_player_analysis_left_card_html(
         f'<p class="pa-identity-meta">{html.escape(str(player.get("team", "—")))} · '
         f'{html.escape(str(player.get("position", "—")))} · '
         f'{html.escape(group_label)}</p>'
+        f"{archetype_block}"
         f'<span class="pa-identity-chip">{html.escape(APP_LEAGUE)}</span>'
         f"{badges_block}"
         "</div>"
