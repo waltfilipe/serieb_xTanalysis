@@ -114,6 +114,13 @@ PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str]], ...] = (
 PLAYER_POSITION_BLOCK_BY_ID: dict[str, tuple[str, frozenset[str]]] = {
     block_id: (label, codes) for block_id, label, codes in PLAYER_ANALYSIS_POSITION_BLOCKS
 }
+_RATING_GROUP_BLOCK_IDS: dict[str, frozenset[str]] = {
+    "centerbacks": frozenset({"cb"}),
+    "fullbacks": frozenset({"rb", "lb"}),
+    "midfielders": frozenset({"cm"}),
+    "wingers": frozenset({"lw", "rw"}),
+    "strikers": frozenset({"st"}),
+}
 FIXED_CLASSIFICATION_MODEL = CLASSIFICATION_MODEL_DEFAULT
 FIXED_TIER_MODEL = TIER_MODEL_DEFAULT
 FIXED_XT_SURFACE_MODE = XT_SURFACE_MODE_DEFAULT
@@ -771,16 +778,19 @@ def _render_player_comparison_panel(
     progression_by_id: dict[str, dict],
 ) -> None:
     primary_id = str(primary.get("player_id"))
-    primary_position = _player_position_code(primary)
+    comparison_codes = _comparison_position_codes_for_player(primary)
+    pool_label = _comparison_pool_label(primary)
     options = _player_analysis_options(
         all_players,
         progression_by_id,
-        position_codes=frozenset({primary_position}) if primary_position else frozenset(),
+        position_codes=comparison_codes,
         exclude_player_id=primary_id,
     )
     if not options:
-        st.info("Nenhum outro jogador disponível na mesma posição para comparação.")
+        st.info(f"Nenhum outro jogador disponível no grupo {pool_label} para comparação.")
         return
+
+    st.caption(f"Comparando dentro do grupo: {pool_label} (ex.: laterais direito com todos os laterais).")
 
     labels = [o[3] for o in options]
     id_by_label = {o[3]: o[0] for o in options}
@@ -2688,6 +2698,25 @@ def _position_codes_from_blocks(block_ids: set[str]) -> frozenset[str]:
         if entry:
             codes.update(entry[1])
     return frozenset(codes)
+
+
+def _comparison_position_codes_for_player(player: dict) -> frozenset[str]:
+    """All position codes in the player's rating group (e.g. RB + LB → fullbacks)."""
+    rating_group = str(player.get("position_group") or "")
+    block_ids = _RATING_GROUP_BLOCK_IDS.get(rating_group)
+    if block_ids:
+        codes = _position_codes_from_blocks(set(block_ids))
+        if codes:
+            return codes
+    pos = _player_position_code(player)
+    return frozenset({pos}) if pos else frozenset()
+
+
+def _comparison_pool_label(player: dict) -> str:
+    group = player.get("position_group")
+    if group:
+        return position_group_label(str(group))
+    return "posição"
 
 
 def _position_blocks_for_player(player: dict) -> set[str]:
