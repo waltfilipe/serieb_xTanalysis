@@ -32,6 +32,23 @@ PILLAR_METRICS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+PILLAR_LABELS: dict[str, str] = {
+    "prog_passe": "Prog. passe",
+    "ousadia": "Ousadia",
+    "construcao": "Construção",
+    "conducao": "Condução",
+    "penetracao": "Penetração",
+}
+
+# Pass-side pillars (blue) vs carry-side pillars (green) on the radar.
+PILLAR_IS_CARRY: dict[str, bool] = {
+    "prog_passe": False,
+    "ousadia": False,
+    "construcao": False,
+    "conducao": True,
+    "penetracao": True,
+}
+
 SUPPORTED_POSITION_GROUPS: frozenset[str] = frozenset({
     "centerbacks",
     "fullbacks",
@@ -250,6 +267,35 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
 }
 
 
+def percentile_to_display_score(pct: float) -> float:
+    """Map 0–100 within-position percentile to radar radius (3.0–9.0)."""
+    import passes_engine as pe
+
+    bounded = max(0.0, min(100.0, float(pct)))
+    rank = max(1, min(100, int(round(bounded / 100.0 * 99.0)) + 1))
+    return float(pe.rank_to_display_score(rank, 100))
+
+
+def pillar_display_scores(pillar_pct: dict[str, float] | None) -> list[float]:
+    return [
+        percentile_to_display_score(pillar_pct.get(key, 50.0))
+        for key in PILLAR_KEYS
+    ]
+
+
+def archetype_prototype_for_player(player: dict) -> dict[str, float] | None:
+    position_group = str(player.get("position_group") or "")
+    archetype_key = player.get("player_archetype")
+    if not position_group or not archetype_key:
+        return None
+    catalog = ARCHETYPE_CATALOG.get(position_group, {})
+    spec = catalog.get(str(archetype_key))
+    if not spec:
+        return None
+    prototype = spec.get("prototype")
+    return dict(prototype) if isinstance(prototype, dict) else None
+
+
 def _percentile_rank(pool_values: list[float], value: float | None) -> float | None:
     if value is None:
         return None
@@ -319,6 +365,8 @@ def assign_player_archetype(player: dict, pool: list[dict]) -> dict[str, Any]:
             "player_archetype_style": None,
             "player_archetype_icon": None,
             "player_archetype_distance": None,
+            "player_pillar_pct": {},
+            "player_archetype_prototype_pct": None,
         }
 
     scores = _pillar_scores(player, pool)
@@ -331,8 +379,23 @@ def assign_player_archetype(player: dict, pool: list[dict]) -> dict[str, Any]:
             "player_archetype_style": None,
             "player_archetype_icon": None,
             "player_archetype_distance": None,
+            "player_pillar_pct": {},
+            "player_archetype_prototype_pct": None,
         }
-    return fields
+
+    archetype_key = fields.get("player_archetype")
+    prototype_pct = None
+    if archetype_key and position_group in ARCHETYPE_CATALOG:
+        spec = ARCHETYPE_CATALOG[position_group].get(str(archetype_key), {})
+        proto = spec.get("prototype")
+        if isinstance(proto, dict):
+            prototype_pct = dict(proto)
+
+    return {
+        **fields,
+        "player_pillar_pct": scores,
+        "player_archetype_prototype_pct": prototype_pct,
+    }
 
 
 def attach_player_archetypes(players: list[dict]) -> list[dict]:

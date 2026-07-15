@@ -69,6 +69,7 @@ from passes_maps import (
     draw_pass_origin_heatmap,
 )
 import carries_engine as ce
+import player_archetypes as pa_arch
 import player_profiles as pp
 from carries_maps import (
     draw_all_carries_map,
@@ -434,7 +435,274 @@ def _collect_radar_metric_points(
     return keys_out, labels, values, is_carry
 
 
+def _collect_archetype_pillar_radar_data(
+    player: dict,
+) -> tuple[list[str], list[float], list[float], list[bool]]:
+    pillar_pct = player.get("player_pillar_pct")
+    if not isinstance(pillar_pct, dict) or not pillar_pct:
+        return [], [], [], []
+
+    labels = [pa_arch.PILLAR_LABELS[key] for key in pa_arch.PILLAR_KEYS]
+    values = pa_arch.pillar_display_scores(pillar_pct)
+    prototype_pct = player.get("player_archetype_prototype_pct")
+    prototype_values = (
+        pa_arch.pillar_display_scores(prototype_pct)
+        if isinstance(prototype_pct, dict) and prototype_pct
+        else []
+    )
+    carry_flags = [pa_arch.PILLAR_IS_CARRY[key] for key in pa_arch.PILLAR_KEYS]
+    return labels, values, prototype_values, carry_flags
+
+
+def _style_archetype_pillar_radar_ax(
+    ax,
+    angles: list[float],
+    labels: list[str],
+    carry_flags: list[bool],
+) -> None:
+    count = len(labels)
+    ax.set_ylim(3.0, 9.0)
+    ax.set_yticks([4, 5, 6, 7, 8])
+    ax.set_yticklabels([])
+    ax.set_xticks(angles)
+    ax.set_xticklabels(labels, fontsize=7.2, fontweight=600)
+    for tick_label, is_carry in zip(ax.get_xticklabels(), carry_flags):
+        tick_label.set_color(PA_RADAR_CARRY_COLOR if is_carry else PA_RADAR_PASS_COLOR)
+    ax.tick_params(axis="x", pad=10)
+    ax.grid(color="#334155", alpha=0.45, linewidth=0.6)
+    ax.spines["polar"].set_color("#334155")
+    ax.spines["polar"].set_alpha(0.55)
+
+
+def _plot_archetype_silhouette_on_ax(
+    ax,
+    angles: list[float],
+    prototype_values: list[float],
+    *,
+    color: str = "#94a3b8",
+    alpha: float = 0.9,
+) -> None:
+    import numpy as np
+
+    if len(prototype_values) < 3:
+        return
+    values_closed = prototype_values + [prototype_values[0]]
+    angles_closed = np.append(angles, angles[0])
+    ax.plot(
+        angles_closed,
+        values_closed,
+        color=color,
+        linewidth=2.0,
+        linestyle=(0, (6, 4)),
+        alpha=alpha,
+        zorder=3,
+    )
+
+
+def _plot_archetype_player_on_ax(
+    ax,
+    angles: list[float],
+    values: list[float],
+    carry_flags: list[bool],
+    *,
+    line_alpha: float,
+    fill_alpha: float,
+    fill_color: str,
+    pass_color: str = PA_RADAR_PASS_COLOR,
+    carry_color: str = PA_RADAR_CARRY_COLOR,
+    draw_fill: bool = True,
+) -> None:
+    import numpy as np
+
+    count = len(values)
+    values_closed = values + [values[0]]
+    angles_closed = np.append(angles, angles[0])
+    if draw_fill:
+        ax.fill(angles_closed, values_closed, color=fill_color, alpha=fill_alpha, zorder=2)
+    for i in range(count):
+        j = (i + 1) % count
+        seg_color = carry_color if carry_flags[i] else pass_color
+        seg_style = (0, (5, 3)) if carry_flags[i] else "-"
+        ax.plot(
+            [angles[i], angles[j]],
+            [values[i], values[j]],
+            color=seg_color,
+            linewidth=2.4,
+            linestyle=seg_style,
+            alpha=line_alpha,
+            zorder=4,
+        )
+    for angle, value, is_carry in zip(angles, values, carry_flags):
+        marker_color = carry_color if is_carry else pass_color
+        ax.plot(
+            angle,
+            value,
+            marker="o",
+            color=marker_color,
+            markersize=5.5,
+            markeredgecolor="#0f172a",
+            markeredgewidth=0.7,
+            alpha=line_alpha,
+            zorder=5,
+        )
+
+
+def _archetype_pillar_radar_b64(
+    player: dict,
+    *,
+    confidence_minutes: float = RATING_CONFIDENCE_MINUTES,
+    confidence_passes: float = RATING_CONFIDENCE_PASSES,
+    radar_figsize: tuple[float, float] = (3.5, 3.5),
+    fill_color: str | None = None,
+) -> str:
+    import base64
+    import io
+
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    matplotlib.use("Agg")
+
+    labels, values, prototype_values, carry_flags = _collect_archetype_pillar_radar_data(player)
+    if len(values) < 3:
+        return ""
+
+    count = len(values)
+    angles = np.linspace(0, 2 * np.pi, count, endpoint=False).tolist()
+    low_sample = _is_low_sample_rating(
+        player,
+        confidence_minutes=confidence_minutes,
+        confidence_passes=confidence_passes,
+    )
+    line_alpha = 0.55 if low_sample else 0.95
+    fill_alpha = 0.14 if low_sample else 0.22
+    radar_fill = fill_color or PA_RADAR_FILL_NEUTRAL
+
+    fig, ax = plt.subplots(
+        figsize=radar_figsize,
+        subplot_kw={"polar": True},
+        facecolor="none",
+    )
+    fig.patch.set_alpha(0.0)
+    ax.set_facecolor("none")
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
+
+    if prototype_values:
+        _plot_archetype_silhouette_on_ax(ax, angles, prototype_values)
+
+    _plot_archetype_player_on_ax(
+        ax,
+        angles,
+        values,
+        carry_flags,
+        line_alpha=line_alpha,
+        fill_alpha=fill_alpha,
+        fill_color=radar_fill,
+    )
+    _style_archetype_pillar_radar_ax(ax, angles, labels, carry_flags)
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.98, bottom=0.02)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=200, transparent=True, bbox_inches="tight", pad_inches=0.06)
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _archetype_pillar_radar_compare_b64(primary: dict, secondary: dict) -> str:
+    import base64
+    import io
+
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    matplotlib.use("Agg")
+
+    labels, primary_values, prototype_values, carry_flags = _collect_archetype_pillar_radar_data(primary)
+    _, secondary_values, _, _ = _collect_archetype_pillar_radar_data(secondary)
+    if len(primary_values) < 3 or len(secondary_values) < 3:
+        return ""
+
+    count = len(labels)
+    angles = np.linspace(0, 2 * np.pi, count, endpoint=False).tolist()
+    fig, ax = plt.subplots(figsize=(3.8, 3.8), subplot_kw={"polar": True}, facecolor="none")
+    fig.patch.set_alpha(0.0)
+    ax.set_facecolor("none")
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
+
+    if prototype_values:
+        _plot_archetype_silhouette_on_ax(ax, angles, prototype_values)
+
+    _plot_archetype_player_on_ax(
+        ax,
+        angles,
+        primary_values,
+        carry_flags,
+        line_alpha=0.95,
+        fill_alpha=0.16,
+        fill_color=PA_COMPARE_PRIMARY_COLOR,
+        pass_color=PA_COMPARE_PRIMARY_COLOR,
+        carry_color=PA_COMPARE_PRIMARY_COLOR,
+        draw_fill=True,
+    )
+    _plot_archetype_player_on_ax(
+        ax,
+        angles,
+        secondary_values,
+        carry_flags,
+        line_alpha=0.9,
+        fill_alpha=0.0,
+        fill_color=PA_COMPARE_SECONDARY_COLOR,
+        pass_color=PA_COMPARE_SECONDARY_COLOR,
+        carry_color=PA_COMPARE_SECONDARY_COLOR,
+        draw_fill=False,
+    )
+    _style_archetype_pillar_radar_ax(ax, angles, labels, carry_flags)
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.98, bottom=0.02)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=200, transparent=True, bbox_inches="tight", pad_inches=0.06)
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
 def _pillar_radar_b64(
+    player: dict,
+    *,
+    scout_section_specs=SCOUT_SECTION_SPECS,
+    metric_keys: tuple[str, ...] | None = None,
+    pillar_labels: dict[str, str] | None = None,
+    confidence_minutes: float = RATING_CONFIDENCE_MINUTES,
+    confidence_passes: float = RATING_CONFIDENCE_PASSES,
+    radar_figsize: tuple[float, float] = (3.4, 3.4),
+    line_color: str = "#60a5fa",
+    fill_color: str | None = None,
+) -> str:
+    if isinstance(player.get("player_pillar_pct"), dict) and player.get("player_pillar_pct"):
+        return _archetype_pillar_radar_b64(
+            player,
+            confidence_minutes=confidence_minutes,
+            confidence_passes=confidence_passes,
+            radar_figsize=radar_figsize,
+            fill_color=fill_color,
+        )
+    return _metric_radar_b64(
+        player,
+        scout_section_specs=scout_section_specs,
+        metric_keys=metric_keys,
+        pillar_labels=pillar_labels,
+        confidence_minutes=confidence_minutes,
+        confidence_passes=confidence_passes,
+        radar_figsize=radar_figsize,
+        line_color=line_color,
+        fill_color=fill_color,
+    )
+
+
+def _metric_radar_b64(
     player: dict,
     *,
     scout_section_specs=SCOUT_SECTION_SPECS,
@@ -598,6 +866,14 @@ def _pillar_radar_compare_b64(
     pillar_labels: dict[str, str] | None = None,
     scout_section_specs=PROGRESSION_SCOUT_SECTION_SPECS,
 ) -> str:
+    if (
+        isinstance(primary.get("player_pillar_pct"), dict)
+        and primary.get("player_pillar_pct")
+        and isinstance(secondary.get("player_pillar_pct"), dict)
+        and secondary.get("player_pillar_pct")
+    ):
+        return _archetype_pillar_radar_compare_b64(primary, secondary)
+
     import base64
     import io
 
@@ -814,7 +1090,7 @@ def _render_player_comparison_panel(
         st.warning("Não foi possível carregar o perfil do jogador selecionado.")
         return
 
-    b64 = _pillar_radar_compare_b64(primary, compare_player, pillar_labels=_PROGRESSION_RADAR_METRIC_LABELS)
+    b64 = _pillar_radar_compare_b64(primary, compare_player)
     if b64:
         legend = (
             '<div class="pa-compare-legend">'
@@ -862,13 +1138,35 @@ def _pillar_radar_card_html(player: dict, **kwargs) -> str:
     inner = _pillar_radar_inner_html(player, **kwargs)
     if not inner:
         return ""
+    archetype_label = html.escape(str(player.get("player_archetype_label") or ""))
+    if archetype_label:
+        title = f"Perfil de jogo · {archetype_label}"
+        legend_archetype = (
+            '<span class="pa-radar-legend-item pa-radar-legend-archetype">'
+            "Típico do arquétipo"
+            "</span>"
+        )
+    else:
+        title = "Pillar profile"
+        legend_archetype = ""
+    legend_player = (
+        '<span class="pa-radar-legend-item pa-radar-legend-player">Jogador</span>'
+        if archetype_label
+        else '<span class="pa-radar-legend-item pa-radar-legend-pass">Passes</span>'
+    )
+    legend_carry = (
+        '<span class="pa-radar-legend-item pa-radar-legend-carry">Carries</span>'
+        if not archetype_label
+        else ""
+    )
     return (
         '<div class="player-card radar-card">'
-        '<div class="radar-card-title">Pillar profile</div>'
+        f'<div class="radar-card-title">{title}</div>'
         f'<div class="radar-card-body">{inner}</div>'
         '<div class="pa-radar-legend">'
-        '<span class="pa-radar-legend-item pa-radar-legend-pass">Passes</span>'
-        '<span class="pa-radar-legend-item pa-radar-legend-carry">Carries</span>'
+        f"{legend_player}"
+        f"{legend_archetype}"
+        f"{legend_carry}"
         "</div>"
         "</div>"
     )
@@ -2346,6 +2644,13 @@ st.markdown(
     }
     .pa-radar-legend-carry::before {
         border-top-color: #34d399;
+        border-top-style: dashed;
+    }
+    .pa-radar-legend-player::before {
+        border-top-color: #c4b5fd;
+    }
+    .pa-radar-legend-archetype::before {
+        border-top-color: #94a3b8;
         border-top-style: dashed;
     }
     .pa-origin-heatmap-wrap {
