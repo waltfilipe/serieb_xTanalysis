@@ -465,7 +465,7 @@ def _style_archetype_pillar_radar_ax(
     ax.set_yticks([4, 5, 6, 7, 8])
     ax.set_yticklabels([])
     ax.set_xticks(angles)
-    ax.set_xticklabels(labels, fontsize=7.2, fontweight=600)
+    ax.set_xticklabels(labels, fontsize=6.8, fontweight=600)
     for tick_label, is_carry in zip(ax.get_xticklabels(), carry_flags):
         tick_label.set_color(PA_RADAR_CARRY_COLOR if is_carry else PA_RADAR_PASS_COLOR)
     ax.tick_params(axis="x", pad=10)
@@ -480,7 +480,8 @@ def _plot_archetype_silhouette_on_ax(
     prototype_values: list[float],
     *,
     color: str = "#94a3b8",
-    alpha: float = 0.9,
+    fill_alpha: float = 0.08,
+    line_alpha: float = 0.35,
 ) -> None:
     import numpy as np
 
@@ -488,13 +489,20 @@ def _plot_archetype_silhouette_on_ax(
         return
     values_closed = prototype_values + [prototype_values[0]]
     angles_closed = np.append(angles, angles[0])
+    ax.fill(
+        angles_closed,
+        values_closed,
+        color=color,
+        alpha=fill_alpha,
+        zorder=1,
+    )
     ax.plot(
         angles_closed,
         values_closed,
         color=color,
-        linewidth=2.0,
-        linestyle=(0, (6, 4)),
-        alpha=alpha,
+        linewidth=1.6,
+        linestyle="-",
+        alpha=line_alpha,
         zorder=3,
     )
 
@@ -522,13 +530,12 @@ def _plot_archetype_player_on_ax(
     for i in range(count):
         j = (i + 1) % count
         seg_color = carry_color if carry_flags[i] else pass_color
-        seg_style = (0, (5, 3)) if carry_flags[i] else "-"
         ax.plot(
             [angles[i], angles[j]],
             [values[i], values[j]],
             color=seg_color,
             linewidth=2.4,
-            linestyle=seg_style,
+            linestyle="-",
             alpha=line_alpha,
             zorder=4,
         )
@@ -2644,14 +2651,15 @@ st.markdown(
     }
     .pa-radar-legend-carry::before {
         border-top-color: #34d399;
-        border-top-style: dashed;
     }
     .pa-radar-legend-player::before {
         border-top-color: #c4b5fd;
     }
     .pa-radar-legend-archetype::before {
-        border-top-color: #94a3b8;
-        border-top-style: dashed;
+        border-top-color: rgba(148, 163, 184, 0.45);
+        background: rgba(148, 163, 184, 0.12);
+        height: 8px;
+        border-top-width: 1.5px;
     }
     .pa-origin-heatmap-wrap {
         flex: 1;

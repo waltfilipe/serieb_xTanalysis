@@ -33,11 +33,16 @@ PILLAR_METRICS: dict[str, tuple[str, ...]] = {
 }
 
 PILLAR_LABELS: dict[str, str] = {
-    "prog_passe": "Prog. passe",
-    "ousadia": "Ousadia",
-    "construcao": "Construção",
-    "conducao": "Condução",
-    "penetracao": "Penetração",
+    # Threat / value added on passes (xT, StatsBomb OBV-style progression).
+    "prog_passe": "Ameaça no passe",
+    # Risk passes + final-third attacking impact (vertical play).
+    "ousadia": "Verticalidade",
+    # Build-up phase in the first 80% of the pitch (jogo de construção).
+    "construcao": "Construção de jogo",
+    # Ball progression via carries (Hudl/StatsBomb carrying).
+    "conducao": "Condução de bola",
+    # Final-third arrivals and box penetration (deep progressions).
+    "penetracao": "Chegada à área",
 }
 
 # Pass-side pillars (blue) vs carry-side pillars (green) on the radar.
