@@ -680,6 +680,17 @@ def _cmp_stat_pct_delta_html(self_val: float | None, other_val: float | None) ->
     return f'<span class="cmp-delta down" title="Abaixo">▼ {pct:.0f}%</span>'
 
 
+def _cmp_delta_compare_html(primary_val: float | None, compare_val: float | None) -> str:
+    """Arrow for the compare athlete only, relative to the main athlete."""
+    if primary_val is None or compare_val is None:
+        return ""
+    if abs(compare_val - primary_val) < 0.05:
+        return '<span class="cmp-delta flat" title="Empate">●</span>'
+    if compare_val > primary_val:
+        return '<span class="cmp-delta up" title="Acima do principal">▲</span>'
+    return '<span class="cmp-delta down" title="Abaixo do principal">▼</span>'
+
+
 def _progression_compare_stats_html(
     primary: dict,
     secondary: dict,
@@ -706,7 +717,6 @@ def _progression_compare_stats_html(
         s_val = html.escape(_stat_display(secondary, key, fmt_pct_fn=fmt_pct_fn, fmt_stat_fn=fmt_stat_fn))
         p_num = _stat_numeric_value(primary, key)
         s_num = _stat_numeric_value(secondary, key)
-        p_delta = _cmp_stat_pct_delta_html(p_num, s_num)
         s_delta = _cmp_stat_pct_delta_html(s_num, p_num)
         p_info = primary_ranks.get(key)
         s_info = secondary_ranks.get(key)
@@ -721,7 +731,7 @@ def _progression_compare_stats_html(
             f'<span class="cmp-cell-label">{label}</span>',
             (
                 f'<span><span class="cmp-value-wrap">'
-                f'<span class="cmp-cell-value">{p_val}</span>{p_delta}</span>'
+                f'<span class="cmp-cell-value">{p_val}</span></span>'
                 f'{"<span class=\"cmp-rank-note\">" + p_rank + "</span>" if p_rank else ""}</span>'
             ),
             (
@@ -1837,11 +1847,21 @@ st.markdown(
     .pa-compare-legend-primary::before { background: #a78bfa; }
     .pa-compare-legend-secondary::before { background: #86efac; }
     .pa-maps-compact {
-        max-width: 760px;
+        max-width: 1180px;
         margin: 0 auto;
     }
     .pa-maps-compact [data-testid="stVerticalBlock"] > div {
         gap: 0.35rem;
+    }
+    .pa-maps-player-slicer,
+    .st-key-maps_player_slicer {
+        max-width: 420px;
+        margin: 0 0 0.65rem 0;
+    }
+    .pa-maps-grid-row [data-testid="stImage"] img,
+    .pa-maps-compact [data-testid="stPyplot"] {
+        max-height: 220px;
+        object-fit: contain;
     }
     .pa-stats-filter {
         display: grid;
@@ -2713,6 +2733,76 @@ def _render_shared_player_slicers(
                 key=select_key,
                 placeholder="Selecione um jogador",
             )
+
+    if not selected_label:
+        st.info("Selecione um jogador para continuar.")
+        return None
+
+    player_id = id_by_label[selected_label]
+    prev_id = st.session_state.get("map_player_id")
+    st.session_state["map_player_id"] = player_id
+    if prev_id != player_id:
+        st.session_state["pa_last_player_id"] = player_id
+        st.session_state.pop(PLAYER_ANALYSIS_SIMILAR_PICK_KEY, None)
+        st.session_state.pop(PLAYER_ANALYSIS_COMPARE_KEY, None)
+        if st.query_params.get("similar_idx") is None and st.query_params.get("pa_similar") != "1":
+            st.session_state.pop(PLAYER_ANALYSIS_SHOW_SIMILAR_KEY, None)
+        url_pick = st.query_params.get("player_id")
+        if url_pick and str(url_pick) != str(player_id):
+            try:
+                del st.query_params["player_id"]
+            except Exception:
+                pass
+            st.session_state.pop("_pa_url_player_id", None)
+    return player_id
+
+
+def _all_position_codes() -> frozenset[str]:
+    return _position_codes_from_blocks(
+        {block_id for block_id, _, _ in PLAYER_ANALYSIS_POSITION_BLOCKS}
+    )
+
+
+def _render_player_only_slicer(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    players_by_id: dict[str, dict],
+    *,
+    key_prefix: str = "maps",
+) -> str | None:
+    """Player selectbox only (no position blocks) — used on Maps tab."""
+    _sync_player_analysis_selection(players_by_id, {})
+
+    with st.container(key=f"{key_prefix}_player_slicer"):
+        options = _player_analysis_options(
+            all_players,
+            progression_by_id,
+            position_codes=_all_position_codes(),
+        )
+        if not options:
+            st.info("Nenhum jogador disponível.")
+            return None
+
+        labels = [o[3] for o in options]
+        id_by_label = {o[3]: o[0] for o in options}
+        label_by_id = {o[0]: o[3] for o in options}
+
+        _sync_player_analysis_selection(players_by_id, label_by_id)
+
+        select_key = _player_select_widget_key(key_prefix)
+        current_label = st.session_state.get(select_key)
+        if current_label and current_label not in labels:
+            st.session_state.pop(select_key, None)
+            current_label = None
+        if select_key not in st.session_state:
+            _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
+
+        selected_label = st.selectbox(
+            "Jogador",
+            options=labels,
+            key=select_key,
+            placeholder="Selecione um jogador",
+        )
 
     if not selected_label:
         st.info("Selecione um jogador para continuar.")
@@ -4242,6 +4332,58 @@ def _resolve_progression_analysis_player(
     return resolved
 
 
+def render_maps_tab_layout(player: dict, passes, carries) -> None:
+    """Maps tab: 3 mini maps on row 1, 2 on row 2."""
+    team_label = player.get("team", "—")
+    player_name = str(player.get("player_name", ""))
+    has_passes = passes is not None and not passes.empty
+    has_carries = carries is not None and not carries.empty
+    has_actions = has_passes or has_carries
+
+    st.markdown('<div class="pa-maps-grid-row">', unsafe_allow_html=True)
+    r1c1, r1c2, r1c3 = st.columns(3, gap="small")
+    with r1c1:
+        if has_actions:
+            fig_origin = draw_action_origin_smooth_heatmap(
+                passes, carries, player_name, profile=False, mini=True,
+            )
+            st.pyplot(fig_origin, clear_figure=True, use_container_width=True)
+        else:
+            st.caption("Sem origem de ações.")
+    with r1c2:
+        if has_actions:
+            fig_all = draw_all_actions_map(
+                passes, carries, player_name, team_label, compact=True,
+            )
+            st.pyplot(fig_all, clear_figure=True, use_container_width=True)
+        else:
+            st.caption("Sem ações.")
+    with r1c3:
+        if has_actions:
+            fig_heat_all = draw_all_actions_heatmap(
+                passes, carries, player_name, team_label, compact=True,
+            )
+            st.pyplot(fig_heat_all, clear_figure=True, use_container_width=True)
+        else:
+            st.caption("Sem heatmap.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if has_actions:
+        st.markdown('<div class="pa-maps-grid-row">', unsafe_allow_html=True)
+        _, r2c1, r2c2, _ = st.columns([0.35, 1, 1, 0.35], gap="small")
+        with r2c1:
+            fig_threat = draw_threat_actions_map(
+                passes, carries, player_name, team_label, compact=True,
+            )
+            st.pyplot(fig_threat, clear_figure=True, use_container_width=True)
+        with r2c2:
+            fig_heat_threat = draw_threat_actions_heatmap(
+                passes, carries, player_name, team_label, compact=True,
+            )
+            st.pyplot(fig_heat_threat, clear_figure=True, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_progression_maps_only(player: dict, passes, carries, *, compact: bool = False) -> None:
     team_label = player.get("team", "—")
     player_name = player["player_name"]
@@ -4445,7 +4587,7 @@ def render_maps_section(
         return
 
     players_by_id = {str(p["player_id"]): p for p in all_players}
-    player_id = _render_shared_player_slicers(
+    player_id = _render_player_only_slicer(
         all_players,
         progression_by_id,
         players_by_id,
@@ -4471,23 +4613,13 @@ def render_maps_section(
 
     passes_df = passes_by_player.get(player_id)
     carries_df = carries_by_player.get(player_id)
-    has_actions = (
-        (passes_df is not None and not passes_df.empty)
-        or (carries_df is not None and not carries_df.empty)
-    )
-    if has_actions:
-        fig_origin = draw_action_origin_smooth_heatmap(
-            passes_df,
-            carries_df,
-            str(player.get("player_name", "")),
-            profile=False,
-            mini=True,
-        )
-        st.pyplot(fig_origin, clear_figure=True, use_container_width=True)
-    else:
+    if (
+        (passes_df is None or passes_df.empty)
+        and (carries_df is None or carries_df.empty)
+    ):
         st.info("Sem ações com coordenadas para este jogador.")
-
-    render_progression_maps_only(player, passes_df, carries_df, compact=True)
+    else:
+        render_maps_tab_layout(player, passes_df, carries_df)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -4643,7 +4775,8 @@ def _comparison_metrics_html(
         rows.append(f'<div class="cmp-section-title">{html.escape(section_name)}</div>')
         for key in section_keys:
             label = _similarity_metric_label_html(key)
-            t_delta, s_delta = _cmp_delta_html(target_pct.get(key), similar_pct.get(key))
+            t_delta = ""
+            s_delta = _cmp_delta_compare_html(target_pct.get(key), similar_pct.get(key))
             t_val = html.escape(sim.fmt_percentile_value(target_pct.get(key)))
             s_val = html.escape(sim.fmt_percentile_value(similar_pct.get(key)))
             rows.extend([
