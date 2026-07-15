@@ -2942,6 +2942,8 @@ def load_core_data(
     passes_by_player = load_passes()
     carries_by_player = load_carries_grouped()
     dribbles_by_player = load_dribbles_grouped()
+    all_players = mo.apply_midfield_position_groups(all_players, passes_by_player, carries_by_player)
+    carries_players = mo.apply_midfield_position_groups(carries_players, passes_by_player, carries_by_player)
     return all_players, carries_players, passes_by_player, carries_by_player, dribbles_by_player
 
 
@@ -3138,13 +3140,14 @@ def _player_analysis_options(
         pid = str(player["player_id"])
         if exclude_player_id and pid == str(exclude_player_id):
             continue
+        profile = progression_by_id.get(pid, player)
         if not _player_matches_position_filter(
-            player,
+            profile,
             position_codes=position_codes,
             position_groups=position_groups,
         ):
             continue
-        prog = progression_by_id.get(pid, {})
+        prog = profile
         rating = prog.get("progression_rating")
         if rating is None:
             rating = prog.get("pass_rating") or player.get("pass_rating")
