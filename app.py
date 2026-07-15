@@ -50,7 +50,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import passes_engine as pe
-from heuristic_scoring import GROUP_COLORS, position_group_label
+from heuristic_scoring import GROUP_COLORS, position_group_label, rating_position_group
 sim = _load_similarity_engine()
 from comparison_config import (
     CLASSIFICATION_MODEL_DEFAULT,
@@ -104,14 +104,15 @@ PLAYER_ANALYSIS_SHOW_SIMILAR_KEY = "pa_show_similar"
 PLAYER_ANALYSIS_SIMILAR_PICK_KEY = "pa_similar_pick"
 PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
+PLAYER_ANALYSIS_ARCHETYPE_KEY = "pa_archetype_filter"
 PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
     ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"}), None),
     ("rb", "Laterais Direitos", frozenset({"RB", "RWB"}), None),
     ("lb", "Laterais Esquerdos", frozenset({"LB", "LWB"}), None),
     ("cm", "Meio-campistas", None, "central_midfielders"),
     ("am", "Meias avançados", None, "attacking_midfielders"),
-    ("lw", "Extremos Esquerdos", frozenset({"LW", "LM", "LCF"}), None),
     ("rw", "Extremos Direitos", frozenset({"RW", "RM", "RCF"}), None),
+    ("lw", "Extremos Esquerdos", frozenset({"LW", "LM", "LCF"}), None),
     ("st", "Atacantes", frozenset({"ST", "CF", "SS"}), None),
 )
 PLAYER_POSITION_BLOCK_BY_ID: dict[str, tuple[str, frozenset[str] | None, str | None]] = {
@@ -2050,7 +2051,15 @@ st.markdown(
         white-space: nowrap;
     }
     section[data-testid="stSidebar"] { display: none; }
-    .pa-shell { max-width: 1380px; margin: 0.35rem auto 1.25rem auto; }
+    .pa-shell { max-width: 1380px; margin: 0.15rem auto 1.25rem auto; }
+    .pa-slicer-panel {
+        margin-top: -0.35rem;
+        margin-bottom: 0.9rem;
+    }
+    .st-key-pa_slicer_panel {
+        margin-top: -0.35rem;
+        margin-bottom: 0.9rem;
+    }
     .pa-slicer-row {
         display: flex;
         flex-wrap: wrap;
@@ -2060,6 +2069,7 @@ st.markdown(
     }
     .pa-position-blocks,
     .st-key-pa_position_blocks,
+    .st-key-pa_archetype_blocks,
     .st-key-maps_position_blocks {
         width: 100%;
         height: auto !important;
@@ -2067,26 +2077,32 @@ st.markdown(
     }
     .pa-position-blocks [data-testid="stHorizontalBlock"],
     .st-key-pa_position_blocks [data-testid="stHorizontalBlock"],
+    .st-key-pa_archetype_blocks [data-testid="stHorizontalBlock"],
     .st-key-maps_position_blocks [data-testid="stHorizontalBlock"] {
         gap: 0.35rem;
         align-items: stretch;
     }
     .pa-position-blocks [data-testid="column"],
     .st-key-pa_position_blocks [data-testid="column"],
+    .st-key-pa_archetype_blocks [data-testid="column"],
     .st-key-maps_position_blocks [data-testid="column"] {
         min-width: 0;
     }
     .pa-position-blocks [data-testid="stButton"],
     .st-key-pa_position_blocks [data-testid="stButton"],
+    .st-key-pa_archetype_blocks [data-testid="stButton"],
     .st-key-maps_position_blocks [data-testid="stButton"],
     div[class*="st-key-pa_pos_block_"] [data-testid="stButton"],
+    div[class*="st-key-pa_arch_block_"] [data-testid="stButton"],
     div[class*="st-key-maps_pos_block_"] [data-testid="stButton"] {
         width: 100%;
     }
     .pa-position-blocks [data-testid="stButton"] button,
     .st-key-pa_position_blocks [data-testid="stButton"] button,
+    .st-key-pa_archetype_blocks [data-testid="stButton"] button,
     .st-key-maps_position_blocks [data-testid="stButton"] button,
     div[class*="st-key-pa_pos_block_"] button,
+    div[class*="st-key-pa_arch_block_"] button,
     div[class*="st-key-maps_pos_block_"] button {
         width: 100%;
         min-height: 2.85rem;
@@ -2104,8 +2120,10 @@ st.markdown(
     }
     .pa-position-blocks [data-testid="stButton"] button:hover,
     .st-key-pa_position_blocks [data-testid="stButton"] button:hover,
+    .st-key-pa_archetype_blocks [data-testid="stButton"] button:hover,
     .st-key-maps_position_blocks [data-testid="stButton"] button:hover,
     div[class*="st-key-pa_pos_block_"] button:hover,
+    div[class*="st-key-pa_arch_block_"] button:hover,
     div[class*="st-key-maps_pos_block_"] button:hover {
         border-color: #3b82f6 !important;
         color: #dbeafe !important;
@@ -2114,11 +2132,15 @@ st.markdown(
     .pa-position-blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
     .st-key-pa_position_blocks [data-testid="stButton"] button[kind="primary"],
     .st-key-pa_position_blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
+    .st-key-pa_archetype_blocks [data-testid="stButton"] button[kind="primary"],
+    .st-key-pa_archetype_blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
     .st-key-maps_position_blocks [data-testid="stButton"] button[kind="primary"],
     .st-key-maps_position_blocks [data-testid="stButton"] button[data-testid="baseButton-primary"],
     div[class*="st-key-pa_pos_block_"] button[kind="primary"],
+    div[class*="st-key-pa_arch_block_"] button[kind="primary"],
     div[class*="st-key-maps_pos_block_"] button[kind="primary"],
     div[class*="st-key-pa_pos_block_"] button[data-testid="baseButton-primary"],
+    div[class*="st-key-pa_arch_block_"] button[data-testid="baseButton-primary"],
     div[class*="st-key-maps_pos_block_"] button[data-testid="baseButton-primary"] {
         background: linear-gradient(160deg, #1e3a5f 0%, #172554 100%) !important;
         border-color: #3b82f6 !important;
@@ -3075,6 +3097,31 @@ def _position_blocks_for_player(player: dict) -> set[str]:
     return {PLAYER_ANALYSIS_POSITION_BLOCKS[0][0]}
 
 
+def _rating_group_for_block(block_id: str) -> str | None:
+    entry = PLAYER_POSITION_BLOCK_BY_ID.get(block_id)
+    if not entry:
+        return None
+    _label, codes, rating_group = entry
+    if rating_group:
+        return rating_group
+    if codes:
+        return rating_position_group(next(iter(codes)))
+    return None
+
+
+def _rating_group_from_blocks(block_ids: set[str]) -> str | None:
+    for block_id in block_ids:
+        group = _rating_group_for_block(block_id)
+        if group:
+            return group
+    return None
+
+
+def _selected_archetype_filter() -> str | None:
+    archetype_key = str(st.session_state.get(PLAYER_ANALYSIS_ARCHETYPE_KEY, "all"))
+    return None if archetype_key == "all" else archetype_key
+
+
 def _render_position_block_slicer(*, key_prefix: str = "pa") -> tuple[frozenset[str], frozenset[str]]:
     state_key = PLAYER_ANALYSIS_POSITION_BLOCKS_KEY
     if state_key not in st.session_state or not st.session_state[state_key]:
@@ -3093,12 +3140,48 @@ def _render_position_block_slicer(*, key_prefix: str = "pa") -> tuple[frozenset[
                 use_container_width=True,
             ):
                 st.session_state[state_key] = {block_id}
+                st.session_state[PLAYER_ANALYSIS_ARCHETYPE_KEY] = "all"
                 st.session_state.pop(PLAYER_ANALYSIS_SELECT_KEY, None)
                 _clear_player_select_widgets()
                 st.session_state.pop(PLAYER_ANALYSIS_COMPARE_KEY, None)
                 st.rerun()
 
     return _position_filter_from_blocks(selected)
+
+
+def _render_archetype_block_slicer(
+    rating_group: str | None,
+    *,
+    key_prefix: str = "pa",
+) -> None:
+    state_key = PLAYER_ANALYSIS_ARCHETYPE_KEY
+    if state_key not in st.session_state:
+        st.session_state[state_key] = "all"
+
+    catalog = pa_arch.ARCHETYPE_CATALOG.get(rating_group or "")
+    if not catalog:
+        return
+
+    st.markdown('<p class="pa-position-block-label">Arquétipo</p>', unsafe_allow_html=True)
+    choices: list[tuple[str, str]] = [("all", "Todos")]
+    choices.extend((key, str(spec["label"])) for key, spec in catalog.items())
+    selected = str(st.session_state[state_key])
+
+    with st.container(key=f"{key_prefix}_archetype_blocks"):
+        arch_cols = st.columns(len(choices))
+        for col, (arch_key, arch_label) in zip(arch_cols, choices):
+            with col:
+                if st.button(
+                    arch_label,
+                    key=f"{key_prefix}_arch_block_{arch_key}",
+                    type="primary" if selected == arch_key else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state[state_key] = arch_key
+                    st.session_state.pop(PLAYER_ANALYSIS_SELECT_KEY, None)
+                    _clear_player_select_widgets()
+                    st.session_state.pop(PLAYER_ANALYSIS_COMPARE_KEY, None)
+                    st.rerun()
 
 
 def _player_select_widget_key(key_prefix: str) -> str:
@@ -3132,6 +3215,7 @@ def _player_analysis_options(
     *,
     position_codes: frozenset[str],
     position_groups: frozenset[str] = frozenset(),
+    archetype_key: str | None = None,
     exclude_player_id: str | None = None,
 ) -> list[tuple[str, str, str, str]]:
     """Player slicer options ranked by overall rating within selected position blocks."""
@@ -3146,6 +3230,8 @@ def _player_analysis_options(
             position_codes=position_codes,
             position_groups=position_groups,
         ):
+            continue
+        if archetype_key and str(profile.get("player_archetype") or "") != archetype_key:
             continue
         prog = profile
         rating = prog.get("progression_rating")
@@ -3180,45 +3266,58 @@ def _render_shared_player_slicers(
     """Position block slicer + player selectbox. Returns selected player_id or None."""
     _sync_player_analysis_selection(players_by_id, {})
 
-    pos_col, player_col = st.columns([2.1, 1], gap="medium")
-    with pos_col:
-        with st.container(key=f"{key_prefix}_position_blocks"):
-            position_codes, position_groups = _render_position_block_slicer(key_prefix=key_prefix)
-    with player_col:
-        with st.container(key=f"{key_prefix}_player_slicer"):
-            if not position_codes and not position_groups:
-                st.info("Selecione uma posição para filtrar jogadores.")
-                return None
-            options = _player_analysis_options(
-                all_players,
-                progression_by_id,
-                position_codes=position_codes,
-                position_groups=position_groups,
-            )
-            if not options:
-                st.info("Nenhum jogador disponível para as posições selecionadas.")
-                return None
+    selected_blocks = set(st.session_state.get(PLAYER_ANALYSIS_POSITION_BLOCKS_KEY, set()))
+    rating_group = _rating_group_from_blocks(selected_blocks)
+    archetype_filter = _selected_archetype_filter()
 
-            labels = [o[3] for o in options]
-            id_by_label = {o[3]: o[0] for o in options}
-            label_by_id = {o[0]: o[3] for o in options}
+    with st.container():
+        st.markdown('<div class="pa-slicer-panel">', unsafe_allow_html=True)
+        pos_col, player_col = st.columns([2.1, 1], gap="medium")
+        with pos_col:
+            with st.container(key=f"{key_prefix}_position_blocks"):
+                position_codes, position_groups = _render_position_block_slicer(key_prefix=key_prefix)
+        selected_label = None
+        with player_col:
+            with st.container(key=f"{key_prefix}_player_slicer"):
+                if not position_codes and not position_groups:
+                    st.info("Selecione uma posição para filtrar jogadores.")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    return None
+                options = _player_analysis_options(
+                    all_players,
+                    progression_by_id,
+                    position_codes=position_codes,
+                    position_groups=position_groups,
+                    archetype_key=archetype_filter,
+                )
+                if not options:
+                    st.info("Nenhum jogador disponível para os filtros selecionados.")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    return None
 
-            _sync_player_analysis_selection(players_by_id, label_by_id)
+                labels = [o[3] for o in options]
+                id_by_label = {o[3]: o[0] for o in options}
+                label_by_id = {o[0]: o[3] for o in options}
 
-            select_key = _player_select_widget_key(key_prefix)
-            current_label = st.session_state.get(select_key)
-            if current_label and current_label not in labels:
-                st.session_state.pop(select_key, None)
-                current_label = None
-            if select_key not in st.session_state:
-                _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
+                _sync_player_analysis_selection(players_by_id, label_by_id)
 
-            selected_label = st.selectbox(
-                "Jogador",
-                options=labels,
-                key=select_key,
-                placeholder="Selecione um jogador",
-            )
+                select_key = _player_select_widget_key(key_prefix)
+                current_label = st.session_state.get(select_key)
+                if current_label and current_label not in labels:
+                    st.session_state.pop(select_key, None)
+                    current_label = None
+                if select_key not in st.session_state:
+                    _sync_player_select_from_map_id(label_by_id, labels, key_prefix=key_prefix)
+
+                selected_label = st.selectbox(
+                    "Jogador",
+                    options=labels,
+                    key=select_key,
+                    placeholder="Selecione um jogador",
+                )
+
+        _render_archetype_block_slicer(rating_group, key_prefix=key_prefix)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     if not selected_label:
         st.info("Selecione um jogador para continuar.")
@@ -5133,8 +5232,6 @@ def render_player_analysis_section(
     pass_pool_by_position: dict[str, list[dict]],
     carry_pool_by_position: dict[str, list[dict]],
 ) -> None:
-    st.subheader("Player Analysis")
-
     if not all_players:
         st.info("No players available.")
         return
