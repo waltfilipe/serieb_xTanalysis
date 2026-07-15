@@ -102,7 +102,8 @@ def shorten_position(position: str | None) -> str:
 POSITION_GROUPS_ORDER = (
     "centerbacks",
     "fullbacks",
-    "midfielders",
+    "central_midfielders",
+    "attacking_midfielders",
     "wingers",
     "strikers",
 )
@@ -111,7 +112,8 @@ COMPARISON_GROUPS_ORDER = (
     "centerback",
     "right-back",
     "left-back",
-    "midfielders",
+    "central-midfielders",
+    "attacking-midfielders",
     "right-winger",
     "left-winger",
     "strikers",
@@ -176,6 +178,8 @@ _POSITION_TO_GROUP = dict(_RATING_POSITION_TO_GROUP)
 POSITION_GROUP_LABELS: dict[str, str] = {
     "centerbacks": "Centerbacks",
     "fullbacks": "Fullbacks",
+    "central_midfielders": "Meio-campistas",
+    "attacking_midfielders": "Meias ofensivos",
     "midfielders": "Midfielders",
     "wingers": "Wingers",
     "strikers": "Strikers",
@@ -185,6 +189,8 @@ COMPARISON_GROUP_LABELS: dict[str, str] = {
     "centerback": "Centerback",
     "right-back": "Right Back",
     "left-back": "Left Back",
+    "central-midfielders": "Meio-campistas",
+    "attacking-midfielders": "Meias ofensivos",
     "midfielders": "Midfielders",
     "right-winger": "Right Winger",
     "left-winger": "Left Winger",
@@ -194,6 +200,8 @@ COMPARISON_GROUP_LABELS: dict[str, str] = {
 _GROUP_COLORS = {
     "centerbacks": "#60a5fa",
     "fullbacks": "#34d399",
+    "central_midfielders": "#fbbf24",
+    "attacking_midfielders": "#fb923c",
     "midfielders": "#fbbf24",
     "wingers": "#f472b6",
     "strikers": "#f87171",

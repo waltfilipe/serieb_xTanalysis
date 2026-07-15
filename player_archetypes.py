@@ -57,7 +57,8 @@ PILLAR_IS_CARRY: dict[str, bool] = {
 SUPPORTED_POSITION_GROUPS: frozenset[str] = frozenset({
     "centerbacks",
     "fullbacks",
-    "midfielders",
+    "central_midfielders",
+    "attacking_midfielders",
     "wingers",
     "strikers",
 })
@@ -146,7 +147,7 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
             },
         },
     },
-    "midfielders": {
+    "central_midfielders": {
         "regista": {
             "label": "Regista",
             "description": "Volante organizador: construção alta e baixo risco.",
@@ -184,6 +185,47 @@ ARCHETYPE_CATALOG: dict[str, dict[str, dict[str, Any]]] = {
                 "construcao": 55,
                 "conducao": 75,
                 "penetracao": 48,
+            },
+        },
+    },
+    "attacking_midfielders": {
+        "armador": {
+            "label": "Armador",
+            "description": "Cria no terço final com passe e visão de jogo.",
+            "style": "build",
+            "icon": "fa-wand-magic-sparkles",
+            "prototype": {
+                "prog_passe": 68,
+                "ousadia": 45,
+                "construcao": 78,
+                "conducao": 42,
+                "penetracao": 52,
+            },
+        },
+        "meia_vertical": {
+            "label": "Meia vertical",
+            "description": "Ameaça direta com verticalidade e chegada ao terço final.",
+            "style": "vertical",
+            "icon": "fa-arrow-trend-up",
+            "prototype": {
+                "prog_passe": 72,
+                "ousadia": 70,
+                "construcao": 45,
+                "conducao": 58,
+                "penetracao": 68,
+            },
+        },
+        "chegador": {
+            "label": "Chegador",
+            "description": "Conduz e penetra no campo ofensivo, chegando à área.",
+            "style": "attack",
+            "icon": "fa-bullseye",
+            "prototype": {
+                "prog_passe": 48,
+                "ousadia": 42,
+                "construcao": 38,
+                "conducao": 78,
+                "penetracao": 82,
             },
         },
     },

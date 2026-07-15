@@ -69,6 +69,7 @@ from passes_maps import (
     draw_pass_origin_heatmap,
 )
 import carries_engine as ce
+import midfield_origin as mo
 import player_archetypes as pa_arch
 import player_profiles as pp
 from carries_maps import (
@@ -103,22 +104,25 @@ PLAYER_ANALYSIS_SHOW_SIMILAR_KEY = "pa_show_similar"
 PLAYER_ANALYSIS_SIMILAR_PICK_KEY = "pa_similar_pick"
 PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
-PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str]], ...] = (
-    ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"})),
-    ("rb", "Laterais Direitos", frozenset({"RB", "RWB"})),
-    ("lb", "Laterais Esquerdos", frozenset({"LB", "LWB"})),
-    ("cm", "Meio Campistas", frozenset({"CM", "CDM", "DM", "RCM", "LCM", "RDM", "LDM", "CAM"})),
-    ("lw", "Extremos Esquerdos", frozenset({"LW", "LM", "LCF"})),
-    ("rw", "Extremos Direitos", frozenset({"RW", "RM", "RCF"})),
-    ("st", "Atacantes", frozenset({"ST", "CF", "SS"})),
+PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
+    ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"}), None),
+    ("rb", "Laterais Direitos", frozenset({"RB", "RWB"}), None),
+    ("lb", "Laterais Esquerdos", frozenset({"LB", "LWB"}), None),
+    ("cm", "Meio-campistas", None, "central_midfielders"),
+    ("am", "Meias ofensivos", None, "attacking_midfielders"),
+    ("lw", "Extremos Esquerdos", frozenset({"LW", "LM", "LCF"}), None),
+    ("rw", "Extremos Direitos", frozenset({"RW", "RM", "RCF"}), None),
+    ("st", "Atacantes", frozenset({"ST", "CF", "SS"}), None),
 )
-PLAYER_POSITION_BLOCK_BY_ID: dict[str, tuple[str, frozenset[str]]] = {
-    block_id: (label, codes) for block_id, label, codes in PLAYER_ANALYSIS_POSITION_BLOCKS
+PLAYER_POSITION_BLOCK_BY_ID: dict[str, tuple[str, frozenset[str] | None, str | None]] = {
+    block_id: (label, codes, rating_group)
+    for block_id, label, codes, rating_group in PLAYER_ANALYSIS_POSITION_BLOCKS
 }
 _RATING_GROUP_BLOCK_IDS: dict[str, frozenset[str]] = {
     "centerbacks": frozenset({"cb"}),
     "fullbacks": frozenset({"rb", "lb"}),
-    "midfielders": frozenset({"cm"}),
+    "central_midfielders": frozenset({"cm"}),
+    "attacking_midfielders": frozenset({"am"}),
     "wingers": frozenset({"lw", "rw"}),
     "strikers": frozenset({"st"}),
 }
@@ -1058,12 +1062,13 @@ def _render_player_comparison_panel(
     progression_by_id: dict[str, dict],
 ) -> None:
     primary_id = str(primary.get("player_id"))
-    comparison_codes = _comparison_position_codes_for_player(primary)
+    comparison_codes, comparison_groups = _comparison_position_filter_for_player(primary)
     pool_label = _comparison_pool_label(primary)
     options = _player_analysis_options(
         all_players,
         progression_by_id,
         position_codes=comparison_codes,
+        position_groups=comparison_groups,
         exclude_player_id=primary_id,
     )
     if not options:
@@ -2901,6 +2906,10 @@ def load_ratings_bundle(
     """Compute pass, carry and progression ratings once per cache version."""
     _, all_players = load_analytics()
     _, carries_players = load_carries_analytics()
+    passes_by_player = load_passes()
+    carries_by_player = load_carries_grouped()
+    all_players = mo.apply_midfield_position_groups(all_players, passes_by_player, carries_by_player)
+    carries_players = mo.apply_midfield_position_groups(carries_players, passes_by_player, carries_by_player)
     rated, players_by_id, pool_by_position = compute_pass_ratings(all_players)
     carry_rated, carries_by_id, carries_pool_by_position = ce_compute_pass_ratings(carries_players)
     progression_rated, progression_by_id, progression_pool_by_position = pg_compute_progression_ratings(
@@ -3001,25 +3010,46 @@ def _player_position_code(player: dict) -> str:
     return str(player.get("position") or "").strip().upper()
 
 
-def _position_codes_from_blocks(block_ids: set[str]) -> frozenset[str]:
+def _position_filter_from_blocks(block_ids: set[str]) -> tuple[frozenset[str], frozenset[str]]:
     codes: set[str] = set()
+    groups: set[str] = set()
     for block_id in block_ids:
         entry = PLAYER_POSITION_BLOCK_BY_ID.get(block_id)
-        if entry:
-            codes.update(entry[1])
-    return frozenset(codes)
+        if not entry:
+            continue
+        _label, block_codes, rating_group = entry
+        if block_codes:
+            codes.update(block_codes)
+        if rating_group:
+            groups.add(rating_group)
+    return frozenset(codes), frozenset(groups)
 
 
-def _comparison_position_codes_for_player(player: dict) -> frozenset[str]:
-    """All position codes in the player's rating group (e.g. RB + LB → fullbacks)."""
+def _player_matches_position_filter(
+    player: dict,
+    *,
+    position_codes: frozenset[str],
+    position_groups: frozenset[str],
+) -> bool:
+    if not position_codes and not position_groups:
+        return True
+    pos = _player_position_code(player)
+    group = str(player.get("position_group") or "")
+    if position_groups and group in position_groups:
+        return True
+    if position_codes and pos in position_codes:
+        return True
+    return False
+
+
+def _comparison_position_filter_for_player(player: dict) -> tuple[frozenset[str], frozenset[str]]:
+    """Rating pool for compare: same rating group (e.g. all central midfielders)."""
     rating_group = str(player.get("position_group") or "")
     block_ids = _RATING_GROUP_BLOCK_IDS.get(rating_group)
     if block_ids:
-        codes = _position_codes_from_blocks(set(block_ids))
-        if codes:
-            return codes
+        return _position_filter_from_blocks(set(block_ids))
     pos = _player_position_code(player)
-    return frozenset({pos}) if pos else frozenset()
+    return (frozenset({pos}) if pos else frozenset(), frozenset())
 
 
 def _comparison_pool_label(player: dict) -> str:
@@ -3031,25 +3061,27 @@ def _comparison_pool_label(player: dict) -> str:
 
 def _position_blocks_for_player(player: dict) -> set[str]:
     pos = _player_position_code(player)
-    blocks = {
-        block_id
-        for block_id, _, codes in PLAYER_ANALYSIS_POSITION_BLOCKS
-        if pos in codes
-    }
+    group = str(player.get("position_group") or "")
+    blocks: set[str] = set()
+    for block_id, _label, codes, rating_group in PLAYER_ANALYSIS_POSITION_BLOCKS:
+        if rating_group and group == rating_group:
+            blocks.add(block_id)
+        elif codes and pos in codes:
+            blocks.add(block_id)
     if blocks:
         return blocks
     return {PLAYER_ANALYSIS_POSITION_BLOCKS[0][0]}
 
 
-def _render_position_block_slicer(*, key_prefix: str = "pa") -> frozenset[str]:
+def _render_position_block_slicer(*, key_prefix: str = "pa") -> tuple[frozenset[str], frozenset[str]]:
     state_key = PLAYER_ANALYSIS_POSITION_BLOCKS_KEY
-    if state_key not in st.session_state:
-        st.session_state[state_key] = set()
+    if state_key not in st.session_state or not st.session_state[state_key]:
+        st.session_state[state_key] = {PLAYER_ANALYSIS_POSITION_BLOCKS[0][0]}
 
     selected: set[str] = set(st.session_state[state_key])
     st.markdown('<p class="pa-position-block-label">Posição</p>', unsafe_allow_html=True)
     block_cols = st.columns(len(PLAYER_ANALYSIS_POSITION_BLOCKS))
-    for col, (block_id, label, _codes) in zip(block_cols, PLAYER_ANALYSIS_POSITION_BLOCKS):
+    for col, (block_id, label, _codes, _rating_group) in zip(block_cols, PLAYER_ANALYSIS_POSITION_BLOCKS):
         with col:
             is_selected = block_id in selected
             if st.button(
@@ -3058,17 +3090,13 @@ def _render_position_block_slicer(*, key_prefix: str = "pa") -> frozenset[str]:
                 type="primary" if is_selected else "secondary",
                 use_container_width=True,
             ):
-                if is_selected:
-                    selected.discard(block_id)
-                else:
-                    selected.add(block_id)
-                st.session_state[state_key] = selected
+                st.session_state[state_key] = {block_id}
                 st.session_state.pop(PLAYER_ANALYSIS_SELECT_KEY, None)
                 _clear_player_select_widgets()
                 st.session_state.pop(PLAYER_ANALYSIS_COMPARE_KEY, None)
                 st.rerun()
 
-    return _position_codes_from_blocks(selected)
+    return _position_filter_from_blocks(selected)
 
 
 def _player_select_widget_key(key_prefix: str) -> str:
@@ -3101,6 +3129,7 @@ def _player_analysis_options(
     progression_by_id: dict[str, dict],
     *,
     position_codes: frozenset[str],
+    position_groups: frozenset[str] = frozenset(),
     exclude_player_id: str | None = None,
 ) -> list[tuple[str, str, str, str]]:
     """Player slicer options ranked by overall rating within selected position blocks."""
@@ -3109,7 +3138,11 @@ def _player_analysis_options(
         pid = str(player["player_id"])
         if exclude_player_id and pid == str(exclude_player_id):
             continue
-        if _player_position_code(player) not in position_codes:
+        if not _player_matches_position_filter(
+            player,
+            position_codes=position_codes,
+            position_groups=position_groups,
+        ):
             continue
         prog = progression_by_id.get(pid, {})
         rating = prog.get("progression_rating")
@@ -3147,16 +3180,17 @@ def _render_shared_player_slicers(
     pos_col, player_col = st.columns([2.1, 1], gap="medium")
     with pos_col:
         with st.container(key=f"{key_prefix}_position_blocks"):
-            position_codes = _render_position_block_slicer(key_prefix=key_prefix)
+            position_codes, position_groups = _render_position_block_slicer(key_prefix=key_prefix)
     with player_col:
         with st.container(key=f"{key_prefix}_player_slicer"):
-            if not position_codes:
-                st.info("Selecione uma ou mais posições para filtrar jogadores.")
+            if not position_codes and not position_groups:
+                st.info("Selecione uma posição para filtrar jogadores.")
                 return None
             options = _player_analysis_options(
                 all_players,
                 progression_by_id,
                 position_codes=position_codes,
+                position_groups=position_groups,
             )
             if not options:
                 st.info("Nenhum jogador disponível para as posições selecionadas.")
@@ -3206,10 +3240,15 @@ def _render_shared_player_slicers(
     return player_id
 
 
-def _all_position_codes() -> frozenset[str]:
-    return _position_codes_from_blocks(
-        {block_id for block_id, _, _ in PLAYER_ANALYSIS_POSITION_BLOCKS}
-    )
+def _all_position_filters() -> tuple[frozenset[str], frozenset[str]]:
+    codes: set[str] = set()
+    groups: set[str] = set()
+    for _block_id, _label, block_codes, rating_group in PLAYER_ANALYSIS_POSITION_BLOCKS:
+        if block_codes:
+            codes.update(block_codes)
+        if rating_group:
+            groups.add(rating_group)
+    return frozenset(codes), frozenset(groups)
 
 
 def _render_player_only_slicer(
@@ -3223,10 +3262,12 @@ def _render_player_only_slicer(
     _sync_player_analysis_selection(players_by_id, {})
 
     with st.container(key=f"{key_prefix}_player_slicer"):
+        all_codes, all_groups = _all_position_filters()
         options = _player_analysis_options(
             all_players,
             progression_by_id,
-            position_codes=_all_position_codes(),
+            position_codes=all_codes,
+            position_groups=all_groups,
         )
         if not options:
             st.info("Nenhum jogador disponível.")

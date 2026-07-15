@@ -293,6 +293,8 @@ TOOLTIP_LABELS: dict[str, str] = {
 POSITION_GROUP_AVG_LABEL_EN: dict[str, str] = {
     "centerbacks": "Average - Center-backs",
     "fullbacks": "Average - Full-backs",
+    "central_midfielders": "Average - Central midfielders",
+    "attacking_midfielders": "Average - Attacking midfielders",
     "midfielders": "Average - Midfielders",
     "wingers": "Average - Wingers",
     "strikers": "Average - Forwards",

@@ -46,6 +46,8 @@ PROGRESSION_RADAR_METRIC_KEYS: tuple[str, ...] = PROGRESSION_RATING_METRIC_KEYS
 POSITION_BLOCK_WEIGHTS: dict[str, tuple[float, float]] = {
     "centerbacks": (0.7, 0.3),
     "fullbacks": (0.5, 0.5),
+    "central_midfielders": (0.6, 0.4),
+    "attacking_midfielders": (0.45, 0.55),
     "midfielders": (0.6, 0.4),
     "wingers": (0.4, 0.6),
     "strikers": (0.3, 0.7),
@@ -437,7 +439,7 @@ def _progression_rating_confidence(player: dict) -> float:
 
 
 def _progression_block_weights(position_group: str) -> tuple[float, float]:
-    return POSITION_BLOCK_WEIGHTS.get(str(position_group or "midfielders"), (0.5, 0.5))
+    return POSITION_BLOCK_WEIGHTS.get(str(position_group or "central_midfielders"), (0.5, 0.5))
 
 
 def _progression_metric_matrix(
