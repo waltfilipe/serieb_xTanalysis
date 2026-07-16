@@ -4929,6 +4929,16 @@ def _resolve_progression_analysis_player(
     return resolved
 
 
+def _filter_maps_passes_by_distance(passes, *, short_only: bool):
+    """Keep only passes under the dashboard short-distance band (<12 m)."""
+    if not short_only or passes is None or passes.empty:
+        return passes
+    if "pass_distance" not in passes.columns:
+        return passes
+    mask = passes["pass_distance"].to_numpy(dtype=float) < pe.DISTANCE_SHORT_MAX_M
+    return passes.loc[mask].copy()
+
+
 def render_maps_tab_layout(player: dict, passes, carries) -> None:
     """Maps tab: 3 mini maps on row 1, 2 on row 2."""
     team_label = player.get("team", "—")
@@ -5206,15 +5216,28 @@ def render_maps_section(
         st.warning("Could not build a profile for this player.")
         return
 
+    short_pass_only = st.checkbox(
+        f"Somente passes < {int(pe.DISTANCE_SHORT_MAX_M)} m",
+        key=MAPS_SHORT_PASS_ONLY_KEY,
+    )
+
     st.markdown('<div class="pa-maps-compact">', unsafe_allow_html=True)
 
     passes_df = passes_by_player.get(player_id)
     carries_df = carries_by_player.get(player_id)
-    if (
-        (passes_df is None or passes_df.empty)
-        and (carries_df is None or carries_df.empty)
-    ):
-        st.info("Sem ações com coordenadas para este jogador.")
+    if short_pass_only:
+        passes_df = _filter_maps_passes_by_distance(passes_df, short_only=True)
+
+    has_passes = passes_df is not None and not passes_df.empty
+    has_carries = carries_df is not None and not carries_df.empty
+    if not has_passes and not has_carries:
+        if short_pass_only:
+            st.info(
+                f"Nenhum passe com menos de {int(pe.DISTANCE_SHORT_MAX_M)} m "
+                "para este jogador."
+            )
+        else:
+            st.info("Sem ações com coordenadas para este jogador.")
     else:
         render_maps_tab_layout(player, passes_df, carries_df)
     st.markdown("</div>", unsafe_allow_html=True)
