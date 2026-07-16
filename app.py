@@ -5275,6 +5275,8 @@ def render_estudo_section() -> None:
     count_grids_by_team = bundle.get("count_grids_by_team") or {}
     rankings_by_model = bundle.get("rankings_by_model") or {}
     comparison = bundle.get("comparison")
+    distance_study = bundle.get("distance_study")
+    distance_study_by_player = bundle.get("distance_study_by_player")
     grid_cfg = bundle.get("grid") or xpe.STUDY_GRID
 
     if not meta or passes is None or passes.empty or not rankings_by_model:
@@ -5301,7 +5303,10 @@ def render_estudo_section() -> None:
         f"**Modelo 3:** suavização hierárquica por **destino 12×8** (partida + liga). "
         f"**Modelo 4:** suavização por **origem 8×6 → destino 12×8**. "
         f"xP escalado em 0–{xp_max:.1f} (célula mais rara = {xp_max:.1f}; demais passes proporcionais). "
-        f"Referência global: {meta.get('league_matches', '—')} partidas da liga."
+        f"Referência global: Série B ({meta.get('league_matches_serie_b', '—')}) + "
+        f"Série A ({meta.get('league_matches_serie_a', '—')}) = "
+        f"{meta.get('league_matches', '—')} partidas · "
+        f"{meta.get('league_passes', 0):,} passes completos."
     )
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Passes (bola viva)", f"{meta.get('live_ball_passes', 0):,}")
@@ -5352,6 +5357,59 @@ def render_estudo_section() -> None:
                 f"- **Escala xP:** a célula/rota mais rara vale **{xp_max:.1f}**; "
                 f"os demais passes são frações proporcionais (teto {xp_max:.1f} por passe)."
             )
+
+    if distance_study is not None and not distance_study.empty:
+        st.markdown("**xP e Threat Passes por distância**")
+        thr_m3 = xpe.THREAT_XP_THRESHOLDS[xpe.XP_MODEL_HIER_DEST]
+        thr_m4 = xpe.THREAT_XP_THRESHOLDS[xpe.XP_MODEL_HIER_OD]
+        dist_display = distance_study[
+            [
+                "band_label", "passes", "mean_xp_m3", "mean_xp_m4",
+                "threat_m3", "threat_m4", "pct_threat_m3", "pct_threat_m4",
+            ]
+        ].copy()
+        dist_display = dist_display.rename(columns={
+            "band_label": "Distância",
+            "passes": "Passes",
+            "mean_xp_m3": "xP médio (3)",
+            "mean_xp_m4": "xP médio (4)",
+            "threat_m3": f"Threat (3 >{thr_m3})",
+            "threat_m4": f"Threat (4 >{thr_m4})",
+            "pct_threat_m3": "% Threat (3)",
+            "pct_threat_m4": "% Threat (4)",
+        })
+        st.dataframe(
+            dist_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "xP médio (3)": st.column_config.NumberColumn(format="%.3f"),
+                "xP médio (4)": st.column_config.NumberColumn(format="%.3f"),
+                "% Threat (3)": st.column_config.NumberColumn(format="%.1f"),
+                "% Threat (4)": st.column_config.NumberColumn(format="%.1f"),
+            },
+        )
+        with st.expander("Threat Passes por jogador e distância"):
+            if distance_study_by_player is not None and not distance_study_by_player.empty:
+                player_display = distance_study_by_player[
+                    [
+                        "player_name", "team", "band_label", "passes",
+                        "mean_xp_m3", "mean_xp_m4", "threat_m3", "threat_m4",
+                    ]
+                ].copy()
+                player_display = player_display.rename(columns={
+                    "player_name": "Jogador",
+                    "team": "Time",
+                    "band_label": "Distância",
+                    "passes": "Passes",
+                    "mean_xp_m3": "xP médio (3)",
+                    "mean_xp_m4": "xP médio (4)",
+                    "threat_m3": f"Threat (3 >{thr_m3})",
+                    "threat_m4": f"Threat (4 >{thr_m4})",
+                })
+                st.dataframe(player_display, use_container_width=True, hide_index=True)
+            else:
+                st.info("Sem dados por jogador.")
 
     rank_col, surface_col = st.columns([1.05, 1], gap="medium")
     with rank_col:

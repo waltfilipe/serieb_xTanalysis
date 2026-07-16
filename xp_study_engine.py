@@ -42,6 +42,18 @@ XP_MODEL_COLUMNS: dict[str, str] = {
 
 STUDY_MODELS: tuple[str, ...] = (XP_MODEL_HIER_DEST, XP_MODEL_HIER_OD)
 
+THREAT_XP_THRESHOLDS: dict[str, float] = {
+    XP_MODEL_HIER_DEST: 0.25,
+    XP_MODEL_HIER_OD: 0.50,
+}
+
+DISTANCE_BAND_ORDER: tuple[str, ...] = ("short", "medium", "long")
+DISTANCE_BAND_LABELS: dict[str, str] = {
+    "short": "<12 m",
+    "medium": "12–25 m",
+    "long": ">25 m",
+}
+
 
 class GridConfig(NamedTuple):
     dest_cols: int
@@ -301,15 +313,39 @@ def build_team_xp_surfaces(
 
 
 @functools.lru_cache(maxsize=1)
+def _load_combined_league_pass_frame() -> pd.DataFrame:
+    """Serie B + Serie A pass events for the global xP reference pool."""
+    frames: list[pd.DataFrame] = []
+    serie_b = pe._load_season_pass_frame()
+    if not serie_b.empty:
+        sb = serie_b.copy()
+        sb["league_source"] = "serie_b"
+        frames.append(sb)
+    serie_a = pe._load_br_pass_frame()
+    if not serie_a.empty:
+        sa = serie_a.copy()
+        sa["league_source"] = "serie_a"
+        frames.append(sa)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
+
+
+@functools.lru_cache(maxsize=1)
 def _league_completed_passes() -> pd.DataFrame:
-    frame = pe._load_season_pass_frame()
+    frame = _load_combined_league_pass_frame()
     if frame.empty:
         return pd.DataFrame()
+    league_source = frame["league_source"].copy() if "league_source" in frame.columns else None
     passes = _enrich_match_passes(frame)
+    if league_source is not None and len(league_source) == len(passes):
+        passes = passes.copy()
+        passes["league_source"] = league_source.to_numpy()
     passes = pe.filter_live_ball_passes(passes)
     if passes is None or passes.empty:
         return pd.DataFrame()
-    return passes[passes["is_won"] & passes["has_end"]].copy()
+    completed = passes[passes["is_won"] & passes["has_end"]].copy()
+    return completed
 
 
 @functools.lru_cache(maxsize=16)
@@ -342,7 +378,15 @@ def _league_reference_surfaces(
 
     dest_count = _count_destination_grid(completed, grid)
     od_count = _count_od_tensor(completed, grid)
-    num_matches = max(int(completed["event_id"].nunique()), 1)
+    if "league_source" in completed.columns:
+        matches_by_league = completed.groupby("league_source")["event_id"].nunique()
+        num_matches_serie_b = int(matches_by_league.get("serie_b", 0))
+        num_matches_serie_a = int(matches_by_league.get("serie_a", 0))
+        num_matches = max(num_matches_serie_b + num_matches_serie_a, 1)
+    else:
+        num_matches_serie_b = max(int(completed["event_id"].nunique()), 0)
+        num_matches_serie_a = 0
+        num_matches = max(num_matches_serie_b, 1)
     dest_per_match = dest_count / num_matches
     od_per_match = od_count / num_matches
 
@@ -353,6 +397,9 @@ def _league_reference_surfaces(
         "od_count": od_count,
         "od_count_per_match": od_per_match,
         "num_matches": num_matches,
+        "num_matches_serie_b": num_matches_serie_b,
+        "num_matches_serie_a": num_matches_serie_a,
+        "league_passes": int(len(completed)),
     }
 
 
@@ -558,6 +605,86 @@ def normalize_xp_model(model: str | None) -> str:
     return key if key in XP_MODEL_COLUMNS else XP_MODEL_HIER_DEST
 
 
+def _distance_band_series(distances: pd.Series | np.ndarray) -> pd.Series:
+    dist = np.asarray(distances, dtype=float)
+    bands = np.full(len(dist), "medium", dtype=object)
+    bands[dist < pe.DISTANCE_SHORT_MAX_M] = "short"
+    bands[dist >= pe.DISTANCE_MEDIUM_MAX_M] = "long"
+    return pd.Series(bands, index=getattr(distances, "index", None))
+
+
+def build_distance_threat_study(passes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Summarize mean xP and threat-pass counts by distance band (models 3 and 4)."""
+    col_m3 = XP_MODEL_COLUMNS[XP_MODEL_HIER_DEST]
+    col_m4 = XP_MODEL_COLUMNS[XP_MODEL_HIER_OD]
+    thr_m3 = THREAT_XP_THRESHOLDS[XP_MODEL_HIER_DEST]
+    thr_m4 = THREAT_XP_THRESHOLDS[XP_MODEL_HIER_OD]
+
+    empty_band = pd.DataFrame(columns=[
+        "distance_band", "band_label", "passes",
+        "mean_xp_m3", "mean_xp_m4",
+        "threat_m3", "threat_m4", "pct_threat_m3", "pct_threat_m4",
+    ])
+    empty_player = pd.DataFrame(columns=[
+        "player_id", "player_name", "team", "distance_band", "band_label", "passes",
+        "mean_xp_m3", "mean_xp_m4", "threat_m3", "threat_m4",
+    ])
+
+    if passes is None or passes.empty:
+        return empty_band, empty_player
+
+    scored = passes[passes["is_won"] & passes["has_end"]].copy()
+    if scored.empty:
+        return empty_band, empty_player
+
+    scored["distance_band"] = _distance_band_series(scored["pass_distance"])
+    scored["band_label"] = scored["distance_band"].map(DISTANCE_BAND_LABELS)
+    scored["is_threat_m3"] = scored[col_m3] > thr_m3
+    scored["is_threat_m4"] = scored[col_m4] > thr_m4
+
+    band_rows: list[dict] = []
+    for band in DISTANCE_BAND_ORDER:
+        grp = scored[scored["distance_band"] == band]
+        if grp.empty:
+            continue
+        n = int(len(grp))
+        band_rows.append({
+            "distance_band": band,
+            "band_label": DISTANCE_BAND_LABELS[band],
+            "passes": n,
+            "mean_xp_m3": float(grp[col_m3].mean()),
+            "mean_xp_m4": float(grp[col_m4].mean()),
+            "threat_m3": int(grp["is_threat_m3"].sum()),
+            "threat_m4": int(grp["is_threat_m4"].sum()),
+            "pct_threat_m3": float(grp["is_threat_m3"].mean() * 100.0),
+            "pct_threat_m4": float(grp["is_threat_m4"].mean() * 100.0),
+        })
+    band_summary = pd.DataFrame(band_rows)
+
+    player_rows: list[dict] = []
+    for (pid, band), grp in scored.groupby(["player_id", "distance_band"], sort=False):
+        player_rows.append({
+            "player_id": str(pid),
+            "player_name": str(grp["player_name"].iloc[0]),
+            "team": str(grp["team"].mode().iloc[0] if not grp["team"].mode().empty else grp["team"].iloc[0]),
+            "distance_band": str(band),
+            "band_label": DISTANCE_BAND_LABELS.get(str(band), str(band)),
+            "passes": int(len(grp)),
+            "mean_xp_m3": float(grp[col_m3].mean()),
+            "mean_xp_m4": float(grp[col_m4].mean()),
+            "threat_m3": int(grp["is_threat_m3"].sum()),
+            "threat_m4": int(grp["is_threat_m4"].sum()),
+        })
+    player_summary = pd.DataFrame(player_rows)
+    if not player_summary.empty:
+        player_summary = player_summary.sort_values(
+            ["distance_band", "threat_m3", "threat_m4", "mean_xp_m3"],
+            ascending=[True, False, False, False],
+        ).reset_index(drop=True)
+
+    return band_summary, player_summary
+
+
 @functools.lru_cache(maxsize=4)
 def load_study_match_bundle(
     event_id: int = STUDY_MATCH_EVENT_ID,
@@ -571,6 +698,8 @@ def load_study_match_bundle(
         "league": {},
         "rankings_by_model": {},
         "comparison": pd.DataFrame(),
+        "distance_study": pd.DataFrame(),
+        "distance_study_by_player": pd.DataFrame(),
         "meta": {},
         "grid": grid,
     }
@@ -620,6 +749,9 @@ def load_study_match_bundle(
             (passes["is_won"] & passes["has_end"] & (passes["team"] == away_team)).sum()
         ) if not passes.empty else 0,
         "league_matches": int(league.get("num_matches", 0)),
+        "league_matches_serie_b": int(league.get("num_matches_serie_b", 0)),
+        "league_matches_serie_a": int(league.get("num_matches_serie_a", 0)),
+        "league_passes": int(league.get("league_passes", 0)),
         "blend_alpha": XP_BLEND_ALPHA,
         "xp_pass_max": XP_PASS_MAX,
         "grid_preset": grid.key,
@@ -637,6 +769,7 @@ def load_study_match_bundle(
         for model in STUDY_MODELS
     }
     comparison = build_model34_comparison_table(passes)
+    distance_study, distance_study_by_player = build_distance_threat_study(passes)
 
     return {
         "passes": passes,
@@ -645,6 +778,8 @@ def load_study_match_bundle(
         "league": league,
         "rankings_by_model": rankings_by_model,
         "comparison": comparison,
+        "distance_study": distance_study,
+        "distance_study_by_player": distance_study_by_player,
         "meta": meta,
         "grid": grid,
     }
