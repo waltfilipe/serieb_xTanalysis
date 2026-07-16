@@ -47,6 +47,23 @@ def _load_progression_engine():
     return module
 
 
+def _load_xp_engine():
+    """Load local xp_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
+    import importlib.util
+
+    module_path = _APP_ROOT / "xp_engine.py"
+    if not module_path.is_file():
+        raise ImportError(f"File not found: {module_path}")
+    spec = importlib.util.spec_from_file_location("passes_xt_xp_engine", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules["passes_xt_xp_engine"] = module
+    sys.modules["xp_engine"] = module
+    return module
+
+
 def _load_xp_study_engine():
     """Load local xp_study_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
     import importlib.util
@@ -63,6 +80,7 @@ def _load_xp_study_engine():
     sys.modules["xp_study_engine"] = module
     return module
 
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -103,7 +121,10 @@ from progression_maps import (
     draw_threat_actions_map,
 )
 xpe = _load_xp_study_engine()
+xe = _load_xp_engine()
 from xp_study_maps import draw_top_xp_passes_map, draw_xp_destination_surface
+
+XP_DATA_CACHE_VERSION = xe.XP_DATA_CACHE_VERSION
 
 DATA_CACHE_VERSION = pe.DATA_CACHE_VERSION
 LONG_BALL_STAT_KEYS = pe.LONG_BALL_STAT_KEYS
@@ -125,6 +146,7 @@ PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
 PLAYER_ANALYSIS_ARCHETYPE_KEY = "pa_archetype_filter"
 MAPS_SHORT_PASS_ONLY_KEY = "maps_short_pass_only"
+MAPS_XP_THREAT_ONLY_KEY = "maps_xp_threat_only"
 ESTUDO_PLAYER_SELECT_KEY = "estudo_player_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
     ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"}), None),
@@ -2942,6 +2964,16 @@ def load_dribbles_grouped(_cache_version: int = CARRIES_DATA_CACHE_VERSION):
 
 
 @st.cache_data(show_spinner=False)
+def load_xp_analytics(_cache_version: int = XP_DATA_CACHE_VERSION):
+    return xe.build_xp_analytics(_cache_version)
+
+
+@st.cache_data(show_spinner=False)
+def load_xp_passes(_cache_version: int = XP_DATA_CACHE_VERSION):
+    return xe.load_xp_passes_grouped(_cache_version)
+
+
+@st.cache_data(show_spinner=False)
 def load_ratings_bundle(
     _pass_cache: int = DATA_CACHE_VERSION,
     _carry_cache: int = CARRIES_DATA_CACHE_VERSION,
@@ -4960,6 +4992,84 @@ def _filter_maps_passes_by_distance(passes, *, short_only: bool):
     return passes.loc[mask].copy()
 
 
+def _resolve_maps_passes(
+    player_id: str,
+    passes_by_player: dict,
+    xp_passes_by_player: dict,
+    *,
+    short_only: bool,
+    xp_threat_only: bool,
+):
+    if xp_threat_only:
+        passes_df = xp_passes_by_player.get(str(player_id))
+        if passes_df is not None and not passes_df.empty and xe.THREAT_COL in passes_df.columns:
+            passes_df = passes_df[passes_df[xe.THREAT_COL]].copy()
+        else:
+            passes_df = None
+    else:
+        passes_df = passes_by_player.get(player_id)
+    return _filter_maps_passes_by_distance(passes_df, short_only=short_only)
+
+
+def render_xp_season_rankings(xp_players: list[dict]) -> None:
+    """Season-wide xP M4 rankings and threat-pass leaders."""
+    if not xp_players:
+        st.info("Métricas xP da temporada indisponíveis.")
+        return
+
+    meta = xe.season_meta()
+    st.markdown("### xP M4 — temporada Série B")
+    st.caption(
+        f"Modelo 4 (origem 8×6 → destino 12×8) · Threat = top {int(xe.THREAT_QUANTILE * 100)}% "
+        f"do resíduo por faixa de distância · {meta.get('passes', '—'):,} passes · "
+        f"{meta.get('threats', '—'):,} threats"
+        if meta
+        else "Modelo 4 com threat por quantil de resíduo."
+    )
+
+    pos_filter = st.selectbox(
+        "Posição (grupo)",
+        options=["Todas"] + sorted({str(p.get("position_group") or "—") for p in xp_players}),
+        key="xp_rank_pos_filter",
+    )
+    rows = xp_players
+    if pos_filter != "Todas":
+        rows = [p for p in xp_players if str(p.get("position_group")) == pos_filter]
+
+    rank_col, threat_col = st.columns(2, gap="medium")
+    with rank_col:
+        st.markdown("**Top xP total**")
+        show = pd.DataFrame([
+            {
+                "Jogador": p["player_name"],
+                "Time": p.get("team", "—"),
+                "Pos": p.get("position", "—"),
+                "Passes": p.get("passes_completed", 0),
+                "xP total": round(float(p.get("xp_m4_total", 0)), 2),
+                "xP/passe": round(float(p.get("xp_m4_per_pass", 0)), 3),
+            }
+            for p in rows[:15]
+        ])
+        st.dataframe(show, use_container_width=True, hide_index=True)
+
+    with threat_col:
+        st.markdown("**Top Threat Passes**")
+        by_threat = sorted(rows, key=lambda p: int(p.get("xp_m4_threat_passes", 0)), reverse=True)
+        show_t = pd.DataFrame([
+            {
+                "Jogador": p["player_name"],
+                "Time": p.get("team", "—"),
+                "Threat": int(p.get("xp_m4_threat_passes", 0)),
+                "<12m": int(p.get("xp_m4_threat_short", 0)),
+                "12–25m": int(p.get("xp_m4_threat_medium", 0)),
+                ">25m": int(p.get("xp_m4_threat_long", 0)),
+                "Taxa %": round(100 * float(p.get("xp_m4_threat_rate", 0)), 1),
+            }
+            for p in by_threat[:15]
+        ])
+        st.dataframe(show_t, use_container_width=True, hide_index=True)
+
+
 def render_maps_tab_layout(player: dict, passes, carries) -> None:
     """Maps tab: 3 mini maps on row 1, 2 on row 2."""
     team_label = player.get("team", "—")
@@ -5207,6 +5317,8 @@ def render_maps_section(
     progression_pool_by_position: dict[str, list[dict]],
     pass_pool_by_position: dict[str, list[dict]],
     carry_pool_by_position: dict[str, list[dict]],
+    *,
+    xp_passes_by_player: dict | None = None,
 ) -> None:
     st.subheader("Maps")
 
@@ -5241,18 +5353,28 @@ def render_maps_section(
         f"Somente passes < {int(pe.DISTANCE_SHORT_MAX_M)} m",
         key=MAPS_SHORT_PASS_ONLY_KEY,
     )
+    xp_threat_only = st.checkbox(
+        f"Somente Threat Passes xP M4 (top {int(xe.THREAT_QUANTILE * 100)}% resíduo)",
+        key=MAPS_XP_THREAT_ONLY_KEY,
+    )
 
     st.markdown('<div class="pa-maps-compact">', unsafe_allow_html=True)
 
-    passes_df = passes_by_player.get(player_id)
+    passes_df = _resolve_maps_passes(
+        player_id,
+        passes_by_player,
+        xp_passes_by_player or {},
+        short_only=short_pass_only,
+        xp_threat_only=xp_threat_only,
+    )
     carries_df = carries_by_player.get(player_id)
-    if short_pass_only:
-        passes_df = _filter_maps_passes_by_distance(passes_df, short_only=True)
 
     has_passes = passes_df is not None and not passes_df.empty
     has_carries = carries_df is not None and not carries_df.empty
     if not has_passes and not has_carries:
-        if short_pass_only:
+        if xp_threat_only:
+            st.info("Nenhum Threat Pass xP M4 para este jogador na temporada.")
+        elif short_pass_only:
             st.info(
                 f"Nenhum passe com menos de {int(pe.DISTANCE_SHORT_MAX_M)} m "
                 "para este jogador."
@@ -5359,7 +5481,7 @@ def render_estudo_section() -> None:
             )
 
     if distance_study is not None and not distance_study.empty:
-        st.markdown("**xP e Threat Passes por distância**")
+        st.markdown("**xP e Threat Passes por distância (partida · limiar fixo legado)**")
         thr_m3 = xpe.THREAT_XP_THRESHOLDS[xpe.XP_MODEL_HIER_DEST]
         thr_m4 = xpe.THREAT_XP_THRESHOLDS[xpe.XP_MODEL_HIER_OD]
         dist_display = distance_study[
@@ -5572,6 +5694,8 @@ def render_player_analysis_section(
     progression_pool_by_position: dict[str, list[dict]],
     pass_pool_by_position: dict[str, list[dict]],
     carry_pool_by_position: dict[str, list[dict]],
+    *,
+    xp_by_id: dict[str, dict] | None = None,
 ) -> None:
     if not all_players:
         st.info("No players available.")
@@ -5603,6 +5727,22 @@ def render_player_analysis_section(
     player = pp.enrich_player_general_profile(player)
 
     st.markdown('<div class="pa-shell">', unsafe_allow_html=True)
+
+    xp_profile = (xp_by_id or {}).get(str(player_id))
+    if xp_profile:
+        st.markdown("#### xP M4 — temporada")
+        x1, x2, x3, x4, x5 = st.columns(5)
+        x1.metric("xP total", f"{float(xp_profile.get('xp_m4_total', 0)):.1f}")
+        x2.metric("xP/passe", f"{float(xp_profile.get('xp_m4_per_pass', 0)):.3f}")
+        x3.metric("Threat passes", f"{int(xp_profile.get('xp_m4_threat_passes', 0))}")
+        x4.metric("Threat %", f"{100 * float(xp_profile.get('xp_m4_threat_rate', 0)):.1f}%")
+        x5.metric("Rank xP", f"#{int(xp_profile.get('xp_m4_rank', 0))}")
+        st.caption(
+            f"Threat por distância: <12m {int(xp_profile.get('xp_m4_threat_short', 0))} · "
+            f"12–25m {int(xp_profile.get('xp_m4_threat_medium', 0))} · "
+            f">25m {int(xp_profile.get('xp_m4_threat_long', 0))} · "
+            f"regra: top {int(xe.THREAT_QUANTILE * 100)}% resíduo por faixa"
+        )
 
     origin_heatmap_b64: str | None = None
     passes_df = passes_by_player.get(player_id)
@@ -6005,6 +6145,7 @@ def render_presentation_tab(
     pool_by_position: dict[str, list[dict]],
     *,
     rated: list[dict],
+    xp_players: list[dict] | None = None,
 ) -> None:
     st.markdown(
         '<div class="pres-card pres-card-hero">'
@@ -6027,6 +6168,10 @@ def render_presentation_tab(
         st.markdown("</div>", unsafe_allow_html=True)
 
     _render_pres_flow_steps()
+
+    if xp_players:
+        st.markdown("---")
+        render_xp_season_rankings(xp_players)
 
 
 def _render_similarity_player_panel(
@@ -6422,6 +6567,10 @@ def main() -> None:
             progression_by_id,
             progression_pool_by_position,
         ) = load_ratings_bundle()
+        with st.spinner("Loading xP season metrics…"):
+            _, xp_players = load_xp_analytics()
+            xp_passes_by_player = load_xp_passes()
+        xp_by_id = {str(p["player_id"]): p for p in xp_players}
 
     selected_player_id = st.session_state.get("map_player_id")
 
@@ -6430,7 +6579,12 @@ def main() -> None:
     )
     with tab_pres:
         render_presentation_tab(
-            all_players, passes_by_player, players_by_id, pool_by_position, rated=rated,
+            all_players,
+            passes_by_player,
+            players_by_id,
+            pool_by_position,
+            rated=rated,
+            xp_players=xp_players,
         )
     with tab_analysis:
         render_player_analysis_section(
@@ -6444,6 +6598,7 @@ def main() -> None:
             progression_pool_by_position,
             pool_by_position,
             carries_pool_by_position,
+            xp_by_id=xp_by_id,
         )
     with tab_maps:
         render_maps_section(
@@ -6456,6 +6611,7 @@ def main() -> None:
             progression_pool_by_position,
             pool_by_position,
             carries_pool_by_position,
+            xp_passes_by_player=xp_passes_by_player,
         )
     with tab_estudo:
         render_estudo_section()
