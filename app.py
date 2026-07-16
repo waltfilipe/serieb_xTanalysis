@@ -46,6 +46,23 @@ def _load_progression_engine():
     sys.modules["passes_xt_progression_engine"] = module
     return module
 
+
+def _load_xp_study_engine():
+    """Load local xp_study_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
+    import importlib.util
+
+    module_path = _APP_ROOT / "xp_study_engine.py"
+    if not module_path.is_file():
+        raise ImportError(f"File not found: {module_path}")
+    spec = importlib.util.spec_from_file_location("passes_xt_xp_study_engine", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules["passes_xt_xp_study_engine"] = module
+    sys.modules["xp_study_engine"] = module
+    return module
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -85,7 +102,7 @@ from progression_maps import (
     draw_threat_actions_heatmap,
     draw_threat_actions_map,
 )
-import xp_study_engine as xpe
+xpe = _load_xp_study_engine()
 from xp_study_maps import draw_top_xp_passes_map, draw_xp_destination_surface
 
 DATA_CACHE_VERSION = pe.DATA_CACHE_VERSION
@@ -5253,11 +5270,11 @@ def render_estudo_section() -> None:
     """Experimental xP tab: destination rarity with hybrid league models."""
     st.subheader("Estudo — xP por raridade de destino")
 
-    grid_labels = [g.label for g in xpe.GRID_PRESETS.values()]
-    grid_keys = list(xpe.GRID_PRESETS.keys())
+    grid_labels = [g.label for g in xpe.list_grid_presets()]
+    grid_keys = [g.key for g in xpe.list_grid_presets()]
     grid_label_to_key = dict(zip(grid_labels, grid_keys))
     if ESTUDO_GRID_KEY not in st.session_state:
-        st.session_state[ESTUDO_GRID_KEY] = xpe.GRID_PRESETS[xpe.DEFAULT_GRID_PRESET].label
+        st.session_state[ESTUDO_GRID_KEY] = xpe.get_grid_config().label
 
     selected_grid_label = st.selectbox(
         "Grade do campo xP",
@@ -5336,7 +5353,7 @@ def render_estudo_section() -> None:
                 "all_8x6": "t8×6",
                 "all_12x8": "t12×8",
             }
-            for preset_key in xpe.GRID_PRESETS:
+            for preset_key in grid_keys:
                 xp_col = preset_key
                 rank_col = f"rank_{preset_key}"
                 if xp_col in grid_comp.columns:

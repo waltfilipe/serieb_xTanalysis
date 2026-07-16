@@ -73,6 +73,11 @@ def get_grid_config(preset: str | None = None) -> GridConfig:
     return GRID_PRESETS[normalize_grid_preset(preset)]
 
 
+def list_grid_presets() -> tuple[GridConfig, ...]:
+    """Ordered grid presets for UI selectors."""
+    return tuple(GRID_PRESETS[k] for k in ("default", "dest_8x6", "all_8x6", "all_12x8") if k in GRID_PRESETS)
+
+
 def _parse_bool_series(series: pd.Series) -> pd.Series:
     return series.astype(str).str.strip().str.lower().isin({"true", "1", "yes", "successful"})
 
