@@ -109,6 +109,7 @@ PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
 PLAYER_ANALYSIS_ARCHETYPE_KEY = "pa_archetype_filter"
 MAPS_SHORT_PASS_ONLY_KEY = "maps_short_pass_only"
 ESTUDO_PLAYER_SELECT_KEY = "estudo_player_select"
+ESTUDO_MODEL_KEY = "estudo_xp_model"
 PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
     ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"}), None),
     ("rb", "Laterais Direitos", frozenset({"RB", "RWB"}), None),
@@ -5248,32 +5249,34 @@ def render_maps_section(
 
 
 def render_estudo_section() -> None:
-    """Experimental xP tab: destination rarity within a single match."""
+    """Experimental xP tab: destination rarity with hybrid league models."""
     st.subheader("Estudo — xP por raridade de destino")
 
     bundle = xpe.load_study_match_bundle(xpe.STUDY_MATCH_EVENT_ID)
     meta = bundle.get("meta") or {}
-    ranking = bundle.get("ranking")
     passes = bundle.get("passes")
     xp_grids_by_team = bundle.get("xp_grids_by_team") or {}
     count_grids_by_team = bundle.get("count_grids_by_team") or {}
+    rankings_by_model = bundle.get("rankings_by_model") or {}
+    comparison = bundle.get("comparison")
 
-    if not meta or ranking is None or ranking.empty or passes is None or passes.empty:
+    if not meta or passes is None or passes.empty or not rankings_by_model:
         st.warning("Não foi possível carregar os dados da partida de estudo.")
         return
 
     match_title = xpe.match_label(meta)
     home_team = str(meta.get("home_team", ""))
     away_team = str(meta.get("away_team", ""))
+    alpha = float(meta.get("blend_alpha", xpe.XP_BLEND_ALPHA))
     st.markdown(
         f"**Partida:** {match_title} · **Data:** {meta.get('match_date', '—')} · "
-        f"**ID:** `{meta.get('event_id', '—')}`"
+        f"**ID:** `{meta.get('event_id', '—')}` · **α = {alpha:.2f}**"
     )
     st.caption(
-        "xP mede o quão incomum é o destino do passe **dentro do próprio time na partida**: "
-        "zonas muito usadas pelo time valem menos; destinos raros valem mais. "
-        "Destinos no 1º terço (x < 40 m) recebem penalidade forte — passes de reciclagem "
-        "(ex.: zagueiro → goleiro) não inflam o xP."
+        "Quatro modelos de xP na mesma partida (por time + penalidade no 1º terço). "
+        "Modelos 2–4 incorporam a liga inteira como referência global "
+        f"({meta.get('league_matches', '—')} partidas). "
+        "Compare rankings antes de calibrar α (passo 5 — futuro)."
     )
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Passes (bola viva)", f"{meta.get('live_ball_passes', 0):,}")
@@ -5281,9 +5284,77 @@ def render_estudo_section() -> None:
     c3.metric(f"Completados · {away_team[:12]}", f"{meta.get('away_completed', 0):,}")
     c4.metric("Jogadores", f"{meta.get('players', 0)}")
 
+    model_labels = list(xpe.XP_MODEL_LABELS.values())
+    model_keys = list(xpe.XP_MODEL_LABELS.keys())
+    label_to_key = dict(zip(model_labels, model_keys))
+    if ESTUDO_MODEL_KEY not in st.session_state:
+        st.session_state[ESTUDO_MODEL_KEY] = model_labels[0]
+    selected_model_label = st.radio(
+        "Modelo xP",
+        options=model_labels,
+        key=ESTUDO_MODEL_KEY,
+        horizontal=True,
+    )
+    selected_model = label_to_key[selected_model_label]
+    ranking = rankings_by_model.get(selected_model)
+    if ranking is None or ranking.empty:
+        st.warning("Ranking indisponível para o modelo selecionado.")
+        return
+
+    if comparison is not None and not comparison.empty:
+        st.markdown("**Comparação entre modelos (xP total na partida)**")
+        comp_display = comparison[
+            [
+                "player_name",
+                "team",
+                "passes_completed",
+                "xp_match_only",
+                "rank_match_only",
+                "xp_multiplicative",
+                "rank_multiplicative",
+                "xp_hierarchical_dest",
+                "rank_hierarchical_dest",
+                "xp_hierarchical_od",
+                "rank_hierarchical_od",
+            ]
+        ].head(15).copy()
+        comp_display = comp_display.rename(columns={
+            "player_name": "Jogador",
+            "team": "Time",
+            "passes_completed": "Passes",
+            "xp_match_only": "xP (1)",
+            "rank_match_only": "#1",
+            "xp_multiplicative": "xP (2)",
+            "rank_multiplicative": "#2",
+            "xp_hierarchical_dest": "xP (3)",
+            "rank_hierarchical_dest": "#3",
+            "xp_hierarchical_od": "xP (4)",
+            "rank_hierarchical_od": "#4",
+        })
+        st.dataframe(
+            comp_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "xP (1)": st.column_config.NumberColumn(format="%.1f"),
+                "xP (2)": st.column_config.NumberColumn(format="%.1f"),
+                "xP (3)": st.column_config.NumberColumn(format="%.1f"),
+                "xP (4)": st.column_config.NumberColumn(format="%.1f"),
+            },
+        )
+        with st.expander("Como ler os modelos"):
+            st.markdown(
+                f"- **Modelo 1:** só raridade do destino no time nesta partida.\n"
+                f"- **Modelo 2:** `xP_match^{alpha:.2f} · xP_global^{1-alpha:.2f}` (destino).\n"
+                f"- **Modelo 3:** contagens de destino misturadas: "
+                f"`{alpha:.2f}·partida + {1-alpha:.2f}·média da liga`.\n"
+                f"- **Modelo 4:** igual ao 3, mas por par **origem→destino** "
+                f"(grade {xpe.OD_GRID_COLS}×{xpe.OD_GRID_ROWS})."
+            )
+
     rank_col, surface_col = st.columns([1.05, 1], gap="medium")
     with rank_col:
-        st.markdown("**Ranking xP na partida**")
+        st.markdown(f"**Ranking — {selected_model_label}**")
         display_rank = ranking[
             ["rank", "player_name", "position", "team", "passes_completed", "xp_total", "xp_per_pass", "xp_max_pass"]
         ].copy()
@@ -5309,7 +5380,7 @@ def render_estudo_section() -> None:
         )
 
     with surface_col:
-        st.markdown("**Superfície xP por time**")
+        st.markdown("**Superfície xP por time (modelo 1)**")
         surf_home, surf_away = st.columns(2, gap="small")
         home_xp, home_count = xpe.team_surface_for_player(
             xp_grids_by_team, count_grids_by_team, team=home_team,
@@ -5333,7 +5404,7 @@ def render_estudo_section() -> None:
             st.pyplot(fig_away, clear_figure=True, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("**Top 5 passes xP por jogador**")
+    st.markdown(f"**Top 5 passes xP — {selected_model_label}**")
 
     options: list[tuple[str, str]] = []
     for row in ranking.itertuples(index=False):
@@ -5360,7 +5431,7 @@ def render_estudo_section() -> None:
     team_xp, _ = xpe.team_surface_for_player(
         xp_grids_by_team, count_grids_by_team, team=player_team,
     )
-    top_passes = xpe.top_xp_passes_for_player(passes, player_id, n=5)
+    top_passes = xpe.top_xp_passes_for_player(passes, player_id, n=5, model=selected_model)
 
     detail_col, map_col = st.columns([0.9, 1.1], gap="medium")
     with detail_col:
