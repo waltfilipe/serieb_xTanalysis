@@ -85,6 +85,8 @@ from progression_maps import (
     draw_threat_actions_heatmap,
     draw_threat_actions_map,
 )
+import xp_study_engine as xpe
+from xp_study_maps import draw_top_xp_passes_map, draw_xp_destination_surface
 
 DATA_CACHE_VERSION = pe.DATA_CACHE_VERSION
 LONG_BALL_STAT_KEYS = pe.LONG_BALL_STAT_KEYS
@@ -106,6 +108,7 @@ PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
 PLAYER_ANALYSIS_ARCHETYPE_KEY = "pa_archetype_filter"
 MAPS_SHORT_PASS_ONLY_KEY = "maps_short_pass_only"
+ESTUDO_PLAYER_SELECT_KEY = "estudo_player_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
     ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"}), None),
     ("rb", "Laterais Direitos", frozenset({"RB", "RWB"}), None),
@@ -5244,6 +5247,139 @@ def render_maps_section(
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def render_estudo_section() -> None:
+    """Experimental xP tab: destination rarity within a single match."""
+    st.subheader("Estudo — xP por raridade de destino")
+
+    bundle = xpe.load_study_match_bundle(xpe.STUDY_MATCH_EVENT_ID)
+    meta = bundle.get("meta") or {}
+    ranking = bundle.get("ranking")
+    passes = bundle.get("passes")
+    xp_grid = bundle.get("xp_grid")
+    count_grid = bundle.get("count_grid")
+
+    if not meta or ranking is None or ranking.empty or passes is None or passes.empty:
+        st.warning("Não foi possível carregar os dados da partida de estudo.")
+        return
+
+    match_title = xpe.match_label(meta)
+    st.markdown(
+        f"**Partida:** {match_title} · **Data:** {meta.get('match_date', '—')} · "
+        f"**ID:** `{meta.get('event_id', '—')}`"
+    )
+    st.caption(
+        "xP mede o quão incomum é o destino de cada passe na partida: zonas com muitos "
+        "recebimentos valem menos; destinos raros valem mais. A superfície é construída "
+        "só com passes completos em bola viva."
+    )
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Passes (bola viva)", f"{meta.get('live_ball_passes', 0):,}")
+    c2.metric("Completados", f"{meta.get('completed_passes', 0):,}")
+    c3.metric("Jogadores", f"{meta.get('players', 0)}")
+    c4.metric("Grade destino", f"{xpe.XP_GRID_COLS}×{xpe.XP_GRID_ROWS}")
+
+    rank_col, surface_col = st.columns([1.05, 1], gap="medium")
+    with rank_col:
+        st.markdown("**Ranking xP na partida**")
+        display_rank = ranking[
+            ["rank", "player_name", "position", "team", "passes_completed", "xp_total", "xp_per_pass", "xp_max_pass"]
+        ].copy()
+        display_rank = display_rank.rename(columns={
+            "rank": "#",
+            "player_name": "Jogador",
+            "position": "Pos",
+            "team": "Time",
+            "passes_completed": "Passes",
+            "xp_total": "xP total",
+            "xp_per_pass": "xP/passe",
+            "xp_max_pass": "xP máx",
+        })
+        st.dataframe(
+            display_rank,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "xP total": st.column_config.NumberColumn(format="%.2f"),
+                "xP/passe": st.column_config.NumberColumn(format="%.3f"),
+                "xP máx": st.column_config.NumberColumn(format="%.2f"),
+            },
+        )
+
+    with surface_col:
+        fig_surface = draw_xp_destination_surface(
+            xp_grid,
+            count_grid,
+            title=f"Superfície xP destino · {match_title}",
+        )
+        st.pyplot(fig_surface, clear_figure=True, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("**Top 5 passes xP por jogador**")
+
+    options: list[tuple[str, str]] = []
+    for row in ranking.itertuples(index=False):
+        label = f"{row.player_name} ({row.team}) — xP {row.xp_total:.1f}"
+        options.append((str(row.player_id), label))
+
+    labels = [label for _, label in options]
+    id_by_label = {label: pid for pid, label in options}
+
+    if ESTUDO_PLAYER_SELECT_KEY not in st.session_state and labels:
+        st.session_state[ESTUDO_PLAYER_SELECT_KEY] = labels[0]
+
+    selected_label = st.selectbox(
+        "Jogador da partida",
+        options=labels,
+        key=ESTUDO_PLAYER_SELECT_KEY,
+    )
+    player_id = id_by_label.get(selected_label)
+    if not player_id:
+        return
+
+    player_name = str(ranking.loc[ranking["player_id"] == player_id, "player_name"].iloc[0])
+    top_passes = xpe.top_xp_passes_for_player(passes, player_id, n=5)
+
+    detail_col, map_col = st.columns([0.9, 1.1], gap="medium")
+    with detail_col:
+        if top_passes.empty:
+            st.info("Sem passes completos com xP para este jogador.")
+        else:
+            table = top_passes[
+                ["xp_value", "pass_distance", "x_start", "y_start", "x_end", "y_end"]
+            ].copy()
+            table.insert(0, "#", range(1, len(table) + 1))
+            table = table.rename(columns={
+                "xp_value": "xP",
+                "pass_distance": "Dist (m)",
+                "x_start": "X₀",
+                "y_start": "Y₀",
+                "x_end": "X₁",
+                "y_end": "Y₁",
+            })
+            st.dataframe(
+                table,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "xP": st.column_config.NumberColumn(format="%.3f"),
+                    "Dist (m)": st.column_config.NumberColumn(format="%.1f"),
+                    "X₀": st.column_config.NumberColumn(format="%.0f"),
+                    "Y₀": st.column_config.NumberColumn(format="%.0f"),
+                    "X₁": st.column_config.NumberColumn(format="%.0f"),
+                    "Y₁": st.column_config.NumberColumn(format="%.0f"),
+                },
+            )
+
+    with map_col:
+        fig_top = draw_top_xp_passes_map(
+            top_passes,
+            player_name=player_name,
+            match_label=match_title,
+            xp_grid=xp_grid,
+        )
+        st.pyplot(fig_top, clear_figure=True, use_container_width=True)
+
+
 def render_player_analysis_section(
     all_players: list[dict],
     carries_players: list[dict],
@@ -6108,8 +6244,8 @@ def main() -> None:
 
     selected_player_id = st.session_state.get("map_player_id")
 
-    tab_pres, tab_analysis, tab_maps = st.tabs(
-        ["Overview", "Player Analysis", "Maps"]
+    tab_pres, tab_analysis, tab_maps, tab_estudo = st.tabs(
+        ["Overview", "Player Analysis", "Maps", "Estudo"]
     )
     with tab_pres:
         render_presentation_tab(
@@ -6140,6 +6276,8 @@ def main() -> None:
             pool_by_position,
             carries_pool_by_position,
         )
+    with tab_estudo:
+        render_estudo_section()
 
 
 main()
