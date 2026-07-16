@@ -13,7 +13,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from mplsoccer import Pitch
 
-from xp_study_engine import FIELD_X, FIELD_Y, XP_GRID_COLS, XP_GRID_ROWS
+from xp_study_engine import FIELD_X, FIELD_Y, XP_GRID_COLS, XP_GRID_ROWS, XP_PASS_MAX
 
 FIG_W, FIG_H = 8.4, 5.6
 FIG_DPI = 220
@@ -59,8 +59,7 @@ def draw_xp_destination_surface(
     dest_cols = cols
     x_bins = np.linspace(0.0, FIELD_X, dest_cols + 1)
     y_bins = np.linspace(0.0, FIELD_Y, dest_rows + 1)
-    vmax = max(float(xp_grid.max()), 1.0)
-    norm = Normalize(vmin=0.0, vmax=vmax)
+    norm = Normalize(vmin=0.0, vmax=XP_PASS_MAX)
     for iy in range(dest_rows):
         for ix in range(dest_cols):
             if count_grid[iy, ix] <= 0:
@@ -101,8 +100,7 @@ def draw_top_xp_passes_map(
         dest_rows, dest_cols = xp_grid.shape
         x_bins = np.linspace(0.0, FIELD_X, dest_cols + 1)
         y_bins = np.linspace(0.0, FIELD_Y, dest_rows + 1)
-        vmax = max(float(xp_grid.max()), 1.0)
-        norm = Normalize(vmin=0.0, vmax=vmax)
+        norm = Normalize(vmin=0.0, vmax=XP_PASS_MAX)
         for iy in range(dest_rows):
             for ix in range(dest_cols):
                 rect = Rectangle(
@@ -122,12 +120,11 @@ def draw_top_xp_passes_map(
         return fig
 
     values = top_passes["xp_value"].to_numpy(dtype=float)
-    vmax = max(float(values.max()), 1.0)
-    norm = Normalize(vmin=0.0, vmax=vmax)
+    norm = Normalize(vmin=0.0, vmax=XP_PASS_MAX)
 
     for rank, row in enumerate(top_passes.itertuples(index=False), start=1):
         color = CMAP_XP(norm(float(row.xp_value)))
-        lw_scale = 0.85 + 0.35 * (float(row.xp_value) / vmax)
+        lw_scale = 0.85 + 0.35 * (float(row.xp_value) / XP_PASS_MAX)
         _delicate_arrows(
             pitch, ax,
             row.x_start, row.y_start, row.x_end, row.y_end,
