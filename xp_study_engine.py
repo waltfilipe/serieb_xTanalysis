@@ -1,4 +1,4 @@
-"""Match-level xP study: destination rarity as pass value."""
+"""Match-level xP study: per-team destination rarity as pass value."""
 
 from __future__ import annotations
 
@@ -16,6 +16,9 @@ XP_SMOOTHING = 1.0
 
 FIELD_X = pe.FIELD_X
 FIELD_Y = pe.FIELD_Y
+FIRST_THIRD_LINE_X = FIELD_X / 3.0
+FIRST_THIRD_BLEND_END_X = 52.0
+XP_FIRST_THIRD_MIN_MULT = 0.12
 
 
 def _parse_bool_series(series: pd.Series) -> pd.Series:
@@ -28,6 +31,19 @@ def _dest_cell_indices(x_end: np.ndarray, y_end: np.ndarray) -> tuple[np.ndarray
     x_idx = np.clip(np.digitize(x_end, x_bins, right=True) - 1, 0, XP_GRID_COLS - 1)
     y_idx = np.clip(np.digitize(y_end, y_bins, right=True) - 1, 0, XP_GRID_ROWS - 1)
     return x_idx, y_idx
+
+
+def _first_third_multiplier_vec(x_end: np.ndarray) -> np.ndarray:
+    """Down-weight destinations in the defensive third (e.g. CB → GK)."""
+    x = np.asarray(x_end, dtype=float)
+    mult = np.ones(len(x), dtype=float)
+    deep = x <= FIRST_THIRD_LINE_X
+    mult[deep] = XP_FIRST_THIRD_MIN_MULT
+    blend = (x > FIRST_THIRD_LINE_X) & (x < FIRST_THIRD_BLEND_END_X)
+    if blend.any():
+        t = (x[blend] - FIRST_THIRD_LINE_X) / (FIRST_THIRD_BLEND_END_X - FIRST_THIRD_LINE_X)
+        mult[blend] = XP_FIRST_THIRD_MIN_MULT + (1.0 - XP_FIRST_THIRD_MIN_MULT) * t
+    return mult
 
 
 def _enrich_match_passes(frame: pd.DataFrame) -> pd.DataFrame:
@@ -76,7 +92,7 @@ def _enrich_match_passes(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_destination_xp_grid(passes: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Return (xp_grid rows×cols, count_grid) from completed pass destinations."""
+    """Return (xp_grid rows×cols, count_grid) from one team's completed destinations."""
     xp_grid = np.ones((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
     count_grid = np.zeros((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
 
@@ -109,10 +125,30 @@ def build_destination_xp_grid(passes: pd.DataFrame) -> tuple[np.ndarray, np.ndar
     return xp_grid, count_grid
 
 
-def assign_pass_xp(passes: pd.DataFrame, xp_grid: np.ndarray) -> pd.DataFrame:
-    """Attach per-pass xP from destination-cell rarity (completed passes only)."""
+def build_team_xp_surfaces(
+    passes: pd.DataFrame,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """One destination-rarity surface per team in the match."""
+    xp_grids: dict[str, np.ndarray] = {}
+    count_grids: dict[str, np.ndarray] = {}
+    if passes is None or passes.empty:
+        return xp_grids, count_grids
+
+    for team, grp in passes.groupby("team", sort=False):
+        team_name = str(team)
+        xp_grids[team_name], count_grids[team_name] = build_destination_xp_grid(grp)
+    return xp_grids, count_grids
+
+
+def assign_pass_xp(
+    passes: pd.DataFrame,
+    xp_grids_by_team: dict[str, np.ndarray],
+) -> pd.DataFrame:
+    """Attach per-pass xP from team-specific destination rarity + 1st-third penalty."""
     out = passes.copy()
     out["xp_value"] = 0.0
+    out["xp_base"] = 0.0
+    out["xp_zone_mult"] = 0.0
     out["dest_ix"] = -1
     out["dest_iy"] = -1
 
@@ -120,18 +156,32 @@ def assign_pass_xp(passes: pd.DataFrame, xp_grid: np.ndarray) -> pd.DataFrame:
     if not mask.any():
         return out
 
+    sub = out.loc[mask]
     x_idx, y_idx = _dest_cell_indices(
-        out.loc[mask, "x_end"].to_numpy(dtype=float),
-        out.loc[mask, "y_end"].to_numpy(dtype=float),
+        sub["x_end"].to_numpy(dtype=float),
+        sub["y_end"].to_numpy(dtype=float),
     )
+    zone_mult = _first_third_multiplier_vec(sub["x_end"].to_numpy(dtype=float))
+
+    base_vals = np.zeros(len(sub), dtype=float)
+    for i, (team, iy, ix) in enumerate(zip(sub["team"].astype(str), y_idx, x_idx)):
+        grid = xp_grids_by_team.get(team)
+        if grid is None:
+            base_vals[i] = 1.0
+        else:
+            base_vals[i] = float(grid[iy, ix])
+
+    xp_vals = base_vals * zone_mult
     out.loc[mask, "dest_ix"] = x_idx
     out.loc[mask, "dest_iy"] = y_idx
-    out.loc[mask, "xp_value"] = xp_grid[y_idx, x_idx]
+    out.loc[mask, "xp_base"] = base_vals
+    out.loc[mask, "xp_zone_mult"] = zone_mult
+    out.loc[mask, "xp_value"] = xp_vals
     return out
 
 
 def rank_players_by_xp(passes: pd.DataFrame) -> pd.DataFrame:
-    """Rank outfield players by total xP in the match."""
+    """Rank players by total xP in the match."""
     if passes is None or passes.empty:
         return pd.DataFrame()
 
@@ -175,43 +225,72 @@ def match_label(meta: dict) -> str:
     return f"{meta['home_team']} vs {meta['away_team']}"
 
 
+def team_surface_for_player(
+    xp_grids_by_team: dict[str, np.ndarray],
+    count_grids_by_team: dict[str, np.ndarray],
+    *,
+    team: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    empty_xp = np.ones((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
+    empty_count = np.zeros((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
+    return (
+        xp_grids_by_team.get(team, empty_xp),
+        count_grids_by_team.get(team, empty_count),
+    )
+
+
 @functools.lru_cache(maxsize=4)
 def load_study_match_bundle(event_id: int = STUDY_MATCH_EVENT_ID) -> dict:
-    """Load one match, build xP surface, and return passes + rankings."""
+    """Load one match, build per-team xP surfaces, and return passes + rankings."""
+    empty = {
+        "passes": pd.DataFrame(),
+        "xp_grids_by_team": {},
+        "count_grids_by_team": {},
+        "ranking": pd.DataFrame(),
+        "meta": {},
+    }
     frame = pe._load_season_pass_frame()
     if frame.empty:
-        return {"passes": pd.DataFrame(), "xp_grid": np.ones((XP_GRID_ROWS, XP_GRID_COLS)), "count_grid": np.zeros((XP_GRID_ROWS, XP_GRID_COLS)), "ranking": pd.DataFrame(), "meta": {}}
+        return empty
 
     match_frame = frame[frame["event_id"].astype(int) == int(event_id)].copy()
     if match_frame.empty:
-        return {"passes": pd.DataFrame(), "xp_grid": np.ones((XP_GRID_ROWS, XP_GRID_COLS)), "count_grid": np.zeros((XP_GRID_ROWS, XP_GRID_COLS)), "ranking": pd.DataFrame(), "meta": {}}
+        return empty
 
     passes = _enrich_match_passes(match_frame)
     passes = pe.filter_live_ball_passes(passes)
     if passes is None:
         passes = pd.DataFrame()
 
-    xp_grid, count_grid = build_destination_xp_grid(passes)
+    xp_grids_by_team, count_grids_by_team = build_team_xp_surfaces(passes)
     if not passes.empty:
-        passes = assign_pass_xp(passes, xp_grid)
+        passes = assign_pass_xp(passes, xp_grids_by_team)
 
     first = match_frame.iloc[0]
+    home_team = str(first["home_team"])
+    away_team = str(first["away_team"])
     meta = {
         "event_id": int(event_id),
-        "home_team": str(first["home_team"]),
-        "away_team": str(first["away_team"]),
+        "home_team": home_team,
+        "away_team": away_team,
         "match_date": str(first["match_date"])[:10],
         "pass_events": int(len(match_frame)),
         "live_ball_passes": int(len(passes)),
         "completed_passes": int((passes["is_won"] & passes["has_end"]).sum()) if not passes.empty else 0,
         "players": int(passes["player_id"].nunique()) if not passes.empty else 0,
+        "home_completed": int(
+            (passes["is_won"] & passes["has_end"] & (passes["team"] == home_team)).sum()
+        ) if not passes.empty else 0,
+        "away_completed": int(
+            (passes["is_won"] & passes["has_end"] & (passes["team"] == away_team)).sum()
+        ) if not passes.empty else 0,
     }
 
     ranking = rank_players_by_xp(passes)
     return {
         "passes": passes,
-        "xp_grid": xp_grid,
-        "count_grid": count_grid,
+        "xp_grids_by_team": xp_grids_by_team,
+        "count_grids_by_team": count_grids_by_team,
         "ranking": ranking,
         "meta": meta,
     }

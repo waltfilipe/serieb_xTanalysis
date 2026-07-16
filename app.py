@@ -5255,28 +5255,31 @@ def render_estudo_section() -> None:
     meta = bundle.get("meta") or {}
     ranking = bundle.get("ranking")
     passes = bundle.get("passes")
-    xp_grid = bundle.get("xp_grid")
-    count_grid = bundle.get("count_grid")
+    xp_grids_by_team = bundle.get("xp_grids_by_team") or {}
+    count_grids_by_team = bundle.get("count_grids_by_team") or {}
 
     if not meta or ranking is None or ranking.empty or passes is None or passes.empty:
         st.warning("Não foi possível carregar os dados da partida de estudo.")
         return
 
     match_title = xpe.match_label(meta)
+    home_team = str(meta.get("home_team", ""))
+    away_team = str(meta.get("away_team", ""))
     st.markdown(
         f"**Partida:** {match_title} · **Data:** {meta.get('match_date', '—')} · "
         f"**ID:** `{meta.get('event_id', '—')}`"
     )
     st.caption(
-        "xP mede o quão incomum é o destino de cada passe na partida: zonas com muitos "
-        "recebimentos valem menos; destinos raros valem mais. A superfície é construída "
-        "só com passes completos em bola viva."
+        "xP mede o quão incomum é o destino do passe **dentro do próprio time na partida**: "
+        "zonas muito usadas pelo time valem menos; destinos raros valem mais. "
+        "Destinos no 1º terço (x < 40 m) recebem penalidade forte — passes de reciclagem "
+        "(ex.: zagueiro → goleiro) não inflam o xP."
     )
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Passes (bola viva)", f"{meta.get('live_ball_passes', 0):,}")
-    c2.metric("Completados", f"{meta.get('completed_passes', 0):,}")
-    c3.metric("Jogadores", f"{meta.get('players', 0)}")
-    c4.metric("Grade destino", f"{xpe.XP_GRID_COLS}×{xpe.XP_GRID_ROWS}")
+    c2.metric(f"Completados · {home_team[:12]}", f"{meta.get('home_completed', 0):,}")
+    c3.metric(f"Completados · {away_team[:12]}", f"{meta.get('away_completed', 0):,}")
+    c4.metric("Jogadores", f"{meta.get('players', 0)}")
 
     rank_col, surface_col = st.columns([1.05, 1], gap="medium")
     with rank_col:
@@ -5306,12 +5309,28 @@ def render_estudo_section() -> None:
         )
 
     with surface_col:
-        fig_surface = draw_xp_destination_surface(
-            xp_grid,
-            count_grid,
-            title=f"Superfície xP destino · {match_title}",
+        st.markdown("**Superfície xP por time**")
+        surf_home, surf_away = st.columns(2, gap="small")
+        home_xp, home_count = xpe.team_surface_for_player(
+            xp_grids_by_team, count_grids_by_team, team=home_team,
         )
-        st.pyplot(fig_surface, clear_figure=True, use_container_width=True)
+        away_xp, away_count = xpe.team_surface_for_player(
+            xp_grids_by_team, count_grids_by_team, team=away_team,
+        )
+        with surf_home:
+            fig_home = draw_xp_destination_surface(
+                home_xp,
+                home_count,
+                title=f"{home_team}",
+            )
+            st.pyplot(fig_home, clear_figure=True, use_container_width=True)
+        with surf_away:
+            fig_away = draw_xp_destination_surface(
+                away_xp,
+                away_count,
+                title=f"{away_team}",
+            )
+            st.pyplot(fig_away, clear_figure=True, use_container_width=True)
 
     st.markdown("---")
     st.markdown("**Top 5 passes xP por jogador**")
@@ -5337,6 +5356,10 @@ def render_estudo_section() -> None:
         return
 
     player_name = str(ranking.loc[ranking["player_id"] == player_id, "player_name"].iloc[0])
+    player_team = str(ranking.loc[ranking["player_id"] == player_id, "team"].iloc[0])
+    team_xp, _ = xpe.team_surface_for_player(
+        xp_grids_by_team, count_grids_by_team, team=player_team,
+    )
     top_passes = xpe.top_xp_passes_for_player(passes, player_id, n=5)
 
     detail_col, map_col = st.columns([0.9, 1.1], gap="medium")
@@ -5374,8 +5397,8 @@ def render_estudo_section() -> None:
         fig_top = draw_top_xp_passes_map(
             top_passes,
             player_name=player_name,
-            match_label=match_title,
-            xp_grid=xp_grid,
+            match_label=f"{match_title} · {player_team}",
+            xp_grid=team_xp,
         )
         st.pyplot(fig_top, clear_figure=True, use_container_width=True)
 
