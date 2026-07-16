@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -10,10 +11,6 @@ import pandas as pd
 import passes_engine as pe
 
 STUDY_MATCH_EVENT_ID = 15526003
-XP_GRID_COLS = 12
-XP_GRID_ROWS = 8
-OD_GRID_COLS = 6
-OD_GRID_ROWS = 4
 XP_SMOOTHING = 1.0
 XP_BLEND_ALPHA = 0.65
 
@@ -22,6 +19,12 @@ FIELD_Y = pe.FIELD_Y
 FIRST_THIRD_LINE_X = FIELD_X / 3.0
 FIRST_THIRD_BLEND_END_X = 52.0
 XP_FIRST_THIRD_MIN_MULT = 0.12
+
+# Default grid (backward-compatible aliases).
+XP_GRID_COLS = 12
+XP_GRID_ROWS = 8
+OD_GRID_COLS = 6
+OD_GRID_ROWS = 4
 
 XP_MODEL_MATCH_ONLY = "match_only"
 XP_MODEL_MULTIPLICATIVE = "multiplicative"
@@ -43,6 +46,33 @@ XP_MODEL_COLUMNS: dict[str, str] = {
 }
 
 
+class GridConfig(NamedTuple):
+    dest_cols: int
+    dest_rows: int
+    od_cols: int
+    od_rows: int
+    key: str
+    label: str
+
+
+GRID_PRESETS: dict[str, GridConfig] = {
+    "default": GridConfig(12, 8, 6, 4, "default", "Atual — destino 12×8 · OD 6×4"),
+    "dest_8x6": GridConfig(8, 6, 6, 4, "dest_8x6", "Destino 8×6 · OD 6×4"),
+    "all_8x6": GridConfig(8, 6, 8, 6, "all_8x6", "Tudo 8×6"),
+    "all_12x8": GridConfig(12, 8, 12, 8, "all_12x8", "Tudo 12×8"),
+}
+DEFAULT_GRID_PRESET = "default"
+
+
+def normalize_grid_preset(preset: str | None) -> str:
+    key = str(preset or DEFAULT_GRID_PRESET).strip().lower()
+    return key if key in GRID_PRESETS else DEFAULT_GRID_PRESET
+
+
+def get_grid_config(preset: str | None = None) -> GridConfig:
+    return GRID_PRESETS[normalize_grid_preset(preset)]
+
+
 def _parse_bool_series(series: pd.Series) -> pd.Series:
     return series.astype(str).str.strip().str.lower().isin({"true", "1", "yes", "successful"})
 
@@ -61,23 +91,7 @@ def _cell_indices(
     return x_idx, y_idx
 
 
-def _dest_cell_indices(x_end: np.ndarray, y_end: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    return _cell_indices(x_end, y_end, cols=XP_GRID_COLS, rows=XP_GRID_ROWS)
-
-
-def _od_cell_indices(
-    x_start: np.ndarray,
-    y_start: np.ndarray,
-    x_end: np.ndarray,
-    y_end: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    ox, oy = _cell_indices(x_start, y_start, cols=OD_GRID_COLS, rows=OD_GRID_ROWS)
-    dx, dy = _cell_indices(x_end, y_end, cols=OD_GRID_COLS, rows=OD_GRID_ROWS)
-    return ox, oy, dx, dy
-
-
 def _first_third_multiplier_vec(x_end: np.ndarray) -> np.ndarray:
-    """Down-weight destinations in the defensive third (e.g. CB → GK)."""
     x = np.asarray(x_end, dtype=float)
     mult = np.ones(len(x), dtype=float)
     deep = x <= FIRST_THIRD_LINE_X
@@ -136,11 +150,9 @@ def _enrich_match_passes(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _count_destination_grid(
     passes: pd.DataFrame,
-    *,
-    cols: int = XP_GRID_COLS,
-    rows: int = XP_GRID_ROWS,
+    grid: GridConfig,
 ) -> np.ndarray:
-    count_grid = np.zeros((rows, cols), dtype=float)
+    count_grid = np.zeros((grid.dest_rows, grid.dest_cols), dtype=float)
     if passes is None or passes.empty:
         return count_grid
 
@@ -151,16 +163,16 @@ def _count_destination_grid(
     x_idx, y_idx = _cell_indices(
         completed["x_end"].to_numpy(dtype=float),
         completed["y_end"].to_numpy(dtype=float),
-        cols=cols,
-        rows=rows,
+        cols=grid.dest_cols,
+        rows=grid.dest_rows,
     )
     for ix, iy in zip(x_idx, y_idx):
         count_grid[iy, ix] += 1.0
     return count_grid
 
 
-def _count_od_tensor(passes: pd.DataFrame) -> np.ndarray:
-    tensor = np.zeros((OD_GRID_ROWS, OD_GRID_COLS, OD_GRID_ROWS, OD_GRID_COLS), dtype=float)
+def _count_od_tensor(passes: pd.DataFrame, grid: GridConfig) -> np.ndarray:
+    tensor = np.zeros((grid.od_rows, grid.od_cols, grid.od_rows, grid.od_cols), dtype=float)
     if passes is None or passes.empty:
         return tensor
 
@@ -168,11 +180,17 @@ def _count_od_tensor(passes: pd.DataFrame) -> np.ndarray:
     if completed.empty:
         return tensor
 
-    ox, oy, dx, dy = _od_cell_indices(
+    ox, oy = _cell_indices(
         completed["x_start"].to_numpy(dtype=float),
         completed["y_start"].to_numpy(dtype=float),
+        cols=grid.od_cols,
+        rows=grid.od_rows,
+    )
+    dx, dy = _cell_indices(
         completed["x_end"].to_numpy(dtype=float),
         completed["y_end"].to_numpy(dtype=float),
+        cols=grid.od_cols,
+        rows=grid.od_rows,
     )
     for oxi, oyi, dxi, dyi in zip(ox, oy, dx, dy):
         tensor[oyi, oxi, dyi, dxi] += 1.0
@@ -221,15 +239,15 @@ def _blend_od_tensor(
 
 
 def _od_counts_to_lookup(tensor: np.ndarray) -> np.ndarray:
-    """Convert origin→destination counts to rarity lookup (same smoothing logic)."""
+    od_rows, od_cols = tensor.shape[0], tensor.shape[1]
     total = float(tensor.sum())
     num_cells = tensor.size
     denom = total + XP_SMOOTHING * num_cells
     lookup = np.ones_like(tensor, dtype=float)
-    for oyi in range(OD_GRID_ROWS):
-        for oxi in range(OD_GRID_COLS):
-            for dyi in range(OD_GRID_ROWS):
-                for dxi in range(OD_GRID_COLS):
+    for oyi in range(od_rows):
+        for oxi in range(od_cols):
+            for dyi in range(od_rows):
+                for dxi in range(od_cols):
                     smoothed = tensor[oyi, oxi, dyi, dxi] + XP_SMOOTHING
                     lookup[oyi, oxi, dyi, dxi] = 1.0 / (smoothed / denom)
 
@@ -240,13 +258,14 @@ def _od_counts_to_lookup(tensor: np.ndarray) -> np.ndarray:
     return lookup
 
 
-def build_destination_xp_grid(passes: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    count_grid = _count_destination_grid(passes)
+def build_destination_xp_grid(passes: pd.DataFrame, grid: GridConfig) -> tuple[np.ndarray, np.ndarray]:
+    count_grid = _count_destination_grid(passes, grid)
     return _counts_to_xp_grid(count_grid), count_grid
 
 
 def build_team_xp_surfaces(
     passes: pd.DataFrame,
+    grid: GridConfig,
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     xp_grids: dict[str, np.ndarray] = {}
     count_grids: dict[str, np.ndarray] = {}
@@ -255,7 +274,7 @@ def build_team_xp_surfaces(
 
     for team, grp in passes.groupby("team", sort=False):
         team_name = str(team)
-        xp_grids[team_name], count_grids[team_name] = build_destination_xp_grid(grp)
+        xp_grids[team_name], count_grids[team_name] = build_destination_xp_grid(grp, grid)
     return xp_grids, count_grids
 
 
@@ -271,24 +290,29 @@ def _league_completed_passes() -> pd.DataFrame:
     return passes[passes["is_won"] & passes["has_end"]].copy()
 
 
-@functools.lru_cache(maxsize=1)
-def _league_reference_surfaces() -> dict[str, np.ndarray | float | int]:
+@functools.lru_cache(maxsize=16)
+def _league_reference_surfaces(
+    dest_cols: int,
+    dest_rows: int,
+    od_cols: int,
+    od_rows: int,
+) -> dict[str, np.ndarray | float | int]:
+    grid = GridConfig(dest_cols, dest_rows, od_cols, od_rows, "", "")
     completed = _league_completed_passes()
     if completed.empty:
-        empty_dest = np.zeros((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
-        empty_od = np.zeros((OD_GRID_ROWS, OD_GRID_COLS, OD_GRID_ROWS, OD_GRID_COLS), dtype=float)
+        empty_dest = np.zeros((dest_rows, dest_cols), dtype=float)
+        empty_od = np.zeros((od_rows, od_cols, od_rows, od_cols), dtype=float)
         return {
             "dest_count": empty_dest,
             "dest_count_per_match": empty_dest,
             "dest_xp": _counts_to_xp_grid(empty_dest),
             "od_count": empty_od,
             "od_count_per_match": empty_od,
-            "od_lookup": _od_counts_to_lookup(empty_od),
             "num_matches": 1,
         }
 
-    dest_count = _count_destination_grid(completed)
-    od_count = _count_od_tensor(completed)
+    dest_count = _count_destination_grid(completed, grid)
+    od_count = _count_od_tensor(completed, grid)
     num_matches = max(int(completed["event_id"].nunique()), 1)
     dest_per_match = dest_count / num_matches
     od_per_match = od_count / num_matches
@@ -299,7 +323,6 @@ def _league_reference_surfaces() -> dict[str, np.ndarray | float | int]:
         "dest_xp": _counts_to_xp_grid(dest_count),
         "od_count": od_count,
         "od_count_per_match": od_per_match,
-        "od_lookup": _od_counts_to_lookup(od_count),
         "num_matches": num_matches,
     }
 
@@ -307,6 +330,7 @@ def _league_reference_surfaces() -> dict[str, np.ndarray | float | int]:
 def _assign_all_xp_models(
     passes: pd.DataFrame,
     *,
+    grid: GridConfig,
     xp_grids_by_team: dict[str, np.ndarray],
     count_grids_by_team: dict[str, np.ndarray],
     league: dict[str, np.ndarray | float | int],
@@ -324,15 +348,23 @@ def _assign_all_xp_models(
         return out
 
     sub = out.loc[mask]
-    x_idx, y_idx = _dest_cell_indices(
+    x_idx, y_idx = _cell_indices(
         sub["x_end"].to_numpy(dtype=float),
         sub["y_end"].to_numpy(dtype=float),
+        cols=grid.dest_cols,
+        rows=grid.dest_rows,
     )
-    ox, oy, odx, ody = _od_cell_indices(
+    ox, oy = _cell_indices(
         sub["x_start"].to_numpy(dtype=float),
         sub["y_start"].to_numpy(dtype=float),
+        cols=grid.od_cols,
+        rows=grid.od_rows,
+    )
+    odx, ody = _cell_indices(
         sub["x_end"].to_numpy(dtype=float),
         sub["y_end"].to_numpy(dtype=float),
+        cols=grid.od_cols,
+        rows=grid.od_rows,
     )
     zone_mult = _first_third_multiplier_vec(sub["x_end"].to_numpy(dtype=float))
 
@@ -345,7 +377,7 @@ def _assign_all_xp_models(
     for team, count_grid in count_grids_by_team.items():
         blended_dest = _blend_count_grid(count_grid, league_dest_per_match, alpha=alpha)
         hier_dest_xp_by_team[team] = _counts_to_xp_grid(blended_dest)
-        team_od = _count_od_tensor(passes[passes["team"].astype(str) == team])
+        team_od = _count_od_tensor(passes[passes["team"].astype(str) == team], grid)
         blended_od = _blend_od_tensor(team_od, league_od_per_match, alpha=alpha)
         hier_od_lookup_by_team[team] = _od_counts_to_lookup(blended_od)
 
@@ -414,7 +446,6 @@ def rank_players_by_xp(
 
 
 def build_model_comparison_table(passes: pd.DataFrame) -> pd.DataFrame:
-    """Side-by-side player totals for all xP models."""
     if passes is None or passes.empty:
         return pd.DataFrame()
 
@@ -442,8 +473,52 @@ def build_model_comparison_table(passes: pd.DataFrame) -> pd.DataFrame:
         col = f"xp_{model}"
         table[f"rank_{model}"] = table[col].rank(ascending=False, method="min").astype(int)
 
-    table = table.sort_values("xp_match_only", ascending=False).reset_index(drop=True)
-    return table
+    return table.sort_values("xp_match_only", ascending=False).reset_index(drop=True)
+
+
+def build_grid_preset_comparison(
+    event_id: int = STUDY_MATCH_EVENT_ID,
+    *,
+    model: str = XP_MODEL_HIER_DEST,
+) -> pd.DataFrame:
+    """Compare player xP totals and ranks across all grid presets for one model."""
+    model = normalize_xp_model(model)
+    col = XP_MODEL_COLUMNS[model]
+    rows: list[dict] = []
+
+    for preset_key, grid in GRID_PRESETS.items():
+        bundle = load_study_match_bundle(event_id, preset_key)
+        passes = bundle.get("passes")
+        if passes is None or passes.empty or col not in passes.columns:
+            continue
+        scored = passes[passes["is_won"] & passes["has_end"]]
+        for pid, grp in scored.groupby("player_id", sort=False):
+            rows.append({
+                "player_id": str(pid),
+                "player_name": str(grp["player_name"].iloc[0]),
+                "team": str(grp["team"].mode().iloc[0] if not grp["team"].mode().empty else grp["team"].iloc[0]),
+                "preset": preset_key,
+                "preset_label": grid.label,
+                "xp_total": float(grp[col].sum()),
+            })
+
+    if not rows:
+        return pd.DataFrame()
+
+    long_df = pd.DataFrame(rows)
+    wide = long_df.pivot_table(
+        index=["player_id", "player_name", "team"],
+        columns="preset",
+        values="xp_total",
+        aggfunc="first",
+    ).reset_index()
+
+    for preset_key in GRID_PRESETS:
+        if preset_key in wide.columns:
+            wide[f"rank_{preset_key}"] = wide[preset_key].rank(ascending=False, method="min").astype(int)
+
+    sort_col = f"rank_{DEFAULT_GRID_PRESET}" if f"rank_{DEFAULT_GRID_PRESET}" in wide.columns else wide.columns[3]
+    return wide.sort_values(sort_col).reset_index(drop=True)
 
 
 def top_xp_passes_for_player(
@@ -474,13 +549,26 @@ def team_surface_for_player(
     count_grids_by_team: dict[str, np.ndarray],
     *,
     team: str,
+    dest_rows: int,
+    dest_cols: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    empty_xp = np.ones((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
-    empty_count = np.zeros((XP_GRID_ROWS, XP_GRID_COLS), dtype=float)
+    empty_xp = np.ones((dest_rows, dest_cols), dtype=float)
+    empty_count = np.zeros((dest_rows, dest_cols), dtype=float)
     return (
         xp_grids_by_team.get(team, empty_xp),
         count_grids_by_team.get(team, empty_count),
     )
+
+
+def grid_occupancy_stats(count_grids_by_team: dict[str, np.ndarray], grid: GridConfig) -> dict[str, float | int]:
+    total_dest_cells = grid.dest_cols * grid.dest_rows
+    total_od_cells = grid.od_cols * grid.od_cols * grid.od_rows * grid.od_rows
+    dest_used = sum(int((cg > 0).sum()) for cg in count_grids_by_team.values())
+    return {
+        "dest_cells": total_dest_cells,
+        "od_cells": total_od_cells,
+        "dest_used": dest_used,
+    }
 
 
 def normalize_xp_model(model: str | None) -> str:
@@ -488,9 +576,12 @@ def normalize_xp_model(model: str | None) -> str:
     return key if key in XP_MODEL_COLUMNS else XP_MODEL_MATCH_ONLY
 
 
-@functools.lru_cache(maxsize=4)
-def load_study_match_bundle(event_id: int = STUDY_MATCH_EVENT_ID) -> dict:
-    """Load one match, build all xP models, and return passes + rankings."""
+@functools.lru_cache(maxsize=16)
+def load_study_match_bundle(
+    event_id: int = STUDY_MATCH_EVENT_ID,
+    grid_preset: str = DEFAULT_GRID_PRESET,
+) -> dict:
+    grid = get_grid_config(grid_preset)
     empty = {
         "passes": pd.DataFrame(),
         "xp_grids_by_team": {},
@@ -499,6 +590,7 @@ def load_study_match_bundle(event_id: int = STUDY_MATCH_EVENT_ID) -> dict:
         "rankings_by_model": {},
         "comparison": pd.DataFrame(),
         "meta": {},
+        "grid": grid,
     }
     frame = pe._load_season_pass_frame()
     if frame.empty:
@@ -513,11 +605,12 @@ def load_study_match_bundle(event_id: int = STUDY_MATCH_EVENT_ID) -> dict:
     if passes is None:
         passes = pd.DataFrame()
 
-    league = _league_reference_surfaces()
-    xp_grids_by_team, count_grids_by_team = build_team_xp_surfaces(passes)
+    league = _league_reference_surfaces(grid.dest_cols, grid.dest_rows, grid.od_cols, grid.od_rows)
+    xp_grids_by_team, count_grids_by_team = build_team_xp_surfaces(passes, grid)
     if not passes.empty:
         passes = _assign_all_xp_models(
             passes,
+            grid=grid,
             xp_grids_by_team=xp_grids_by_team,
             count_grids_by_team=count_grids_by_team,
             league=league,
@@ -543,6 +636,12 @@ def load_study_match_bundle(event_id: int = STUDY_MATCH_EVENT_ID) -> dict:
         ) if not passes.empty else 0,
         "league_matches": int(league.get("num_matches", 0)),
         "blend_alpha": XP_BLEND_ALPHA,
+        "grid_preset": grid.key,
+        "grid_label": grid.label,
+        "dest_cols": grid.dest_cols,
+        "dest_rows": grid.dest_rows,
+        "od_cols": grid.od_cols,
+        "od_rows": grid.od_rows,
     }
 
     rankings_by_model = {
@@ -559,4 +658,5 @@ def load_study_match_bundle(event_id: int = STUDY_MATCH_EVENT_ID) -> dict:
         "rankings_by_model": rankings_by_model,
         "comparison": comparison,
         "meta": meta,
+        "grid": grid,
     }

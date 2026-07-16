@@ -110,6 +110,7 @@ PLAYER_ANALYSIS_ARCHETYPE_KEY = "pa_archetype_filter"
 MAPS_SHORT_PASS_ONLY_KEY = "maps_short_pass_only"
 ESTUDO_PLAYER_SELECT_KEY = "estudo_player_select"
 ESTUDO_MODEL_KEY = "estudo_xp_model"
+ESTUDO_GRID_KEY = "estudo_grid_preset"
 PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
     ("cb", "Zagueiros", frozenset({"CB", "RCB", "LCB"}), None),
     ("rb", "Laterais Direitos", frozenset({"RB", "RWB"}), None),
@@ -5252,7 +5253,21 @@ def render_estudo_section() -> None:
     """Experimental xP tab: destination rarity with hybrid league models."""
     st.subheader("Estudo — xP por raridade de destino")
 
-    bundle = xpe.load_study_match_bundle(xpe.STUDY_MATCH_EVENT_ID)
+    grid_labels = [g.label for g in xpe.GRID_PRESETS.values()]
+    grid_keys = list(xpe.GRID_PRESETS.keys())
+    grid_label_to_key = dict(zip(grid_labels, grid_keys))
+    if ESTUDO_GRID_KEY not in st.session_state:
+        st.session_state[ESTUDO_GRID_KEY] = xpe.GRID_PRESETS[xpe.DEFAULT_GRID_PRESET].label
+
+    selected_grid_label = st.selectbox(
+        "Grade do campo xP",
+        options=grid_labels,
+        key=ESTUDO_GRID_KEY,
+    )
+    grid_preset = grid_label_to_key[selected_grid_label]
+    grid_cfg = xpe.get_grid_config(grid_preset)
+
+    bundle = xpe.load_study_match_bundle(xpe.STUDY_MATCH_EVENT_ID, grid_preset)
     meta = bundle.get("meta") or {}
     passes = bundle.get("passes")
     xp_grids_by_team = bundle.get("xp_grids_by_team") or {}
@@ -5273,16 +5288,17 @@ def render_estudo_section() -> None:
         f"**ID:** `{meta.get('event_id', '—')}` · **α = {alpha:.2f}**"
     )
     st.caption(
-        "Quatro modelos de xP na mesma partida (por time + penalidade no 1º terço). "
-        "Modelos 2–4 incorporam a liga inteira como referência global "
-        f"({meta.get('league_matches', '—')} partidas). "
-        "Compare rankings antes de calibrar α (passo 5 — futuro)."
+        f"Grade ativa: destino **{grid_cfg.dest_cols}×{grid_cfg.dest_rows}** · "
+        f"origem→destino **{grid_cfg.od_cols}×{grid_cfg.od_rows}**. "
+        "Quatro modelos de xP (por time + penalidade no 1º terço). "
+        f"Referência global: {meta.get('league_matches', '—')} partidas da liga."
     )
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Passes (bola viva)", f"{meta.get('live_ball_passes', 0):,}")
-    c2.metric(f"Completados · {home_team[:12]}", f"{meta.get('home_completed', 0):,}")
-    c3.metric(f"Completados · {away_team[:12]}", f"{meta.get('away_completed', 0):,}")
+    c2.metric(f"Completados · {home_team[:10]}", f"{meta.get('home_completed', 0):,}")
+    c3.metric(f"Completados · {away_team[:10]}", f"{meta.get('away_completed', 0):,}")
     c4.metric("Jogadores", f"{meta.get('players', 0)}")
+    c5.metric("Destino", f"{grid_cfg.dest_cols}×{grid_cfg.dest_rows}")
 
     model_labels = list(xpe.XP_MODEL_LABELS.values())
     model_keys = list(xpe.XP_MODEL_LABELS.keys())
@@ -5300,6 +5316,45 @@ def render_estudo_section() -> None:
     if ranking is None or ranking.empty:
         st.warning("Ranking indisponível para o modelo selecionado.")
         return
+
+    with st.expander("Comparar grades (mesmo modelo selecionado)", expanded=False):
+        grid_comp = xpe.build_grid_preset_comparison(
+            xpe.STUDY_MATCH_EVENT_ID,
+            model=selected_model,
+        )
+        if grid_comp.empty:
+            st.info("Comparação entre grades indisponível.")
+        else:
+            preset_cols: list[str] = []
+            rename: dict[str, str] = {
+                "player_name": "Jogador",
+                "team": "Time",
+            }
+            short_names = {
+                "default": "atual",
+                "dest_8x6": "d8×6",
+                "all_8x6": "t8×6",
+                "all_12x8": "t12×8",
+            }
+            for preset_key in xpe.GRID_PRESETS:
+                xp_col = preset_key
+                rank_col = f"rank_{preset_key}"
+                if xp_col in grid_comp.columns:
+                    preset_cols.extend([xp_col, rank_col])
+                    short = short_names.get(preset_key, preset_key)
+                    rename[xp_col] = f"xP ({short})"
+                    rename[rank_col] = f"# ({short})"
+            show_cols = ["player_name", "team"] + preset_cols
+            show_cols = [c for c in show_cols if c in grid_comp.columns]
+            st.dataframe(
+                grid_comp[show_cols].head(15).rename(columns=rename),
+                use_container_width=True,
+                hide_index=True,
+            )
+            st.caption(
+                "xP total e posição no ranking para cada preset de grade, "
+                "mantendo o mesmo modelo xP selecionado acima."
+            )
 
     if comparison is not None and not comparison.empty:
         st.markdown("**Comparação entre modelos (xP total na partida)**")
@@ -5349,7 +5404,7 @@ def render_estudo_section() -> None:
                 f"- **Modelo 3:** contagens de destino misturadas: "
                 f"`{alpha:.2f}·partida + {1-alpha:.2f}·média da liga`.\n"
                 f"- **Modelo 4:** igual ao 3, mas por par **origem→destino** "
-                f"(grade {xpe.OD_GRID_COLS}×{xpe.OD_GRID_ROWS})."
+                f"(grade {grid_cfg.od_cols}×{grid_cfg.od_rows})."
             )
 
     rank_col, surface_col = st.columns([1.05, 1], gap="medium")
@@ -5380,19 +5435,29 @@ def render_estudo_section() -> None:
         )
 
     with surface_col:
-        st.markdown("**Superfície xP por time (modelo 1)**")
+        st.markdown(f"**Superfície xP por time (modelo 1 · {grid_cfg.dest_cols}×{grid_cfg.dest_rows})**")
         surf_home, surf_away = st.columns(2, gap="small")
         home_xp, home_count = xpe.team_surface_for_player(
-            xp_grids_by_team, count_grids_by_team, team=home_team,
+            xp_grids_by_team,
+            count_grids_by_team,
+            team=home_team,
+            dest_rows=grid_cfg.dest_rows,
+            dest_cols=grid_cfg.dest_cols,
         )
         away_xp, away_count = xpe.team_surface_for_player(
-            xp_grids_by_team, count_grids_by_team, team=away_team,
+            xp_grids_by_team,
+            count_grids_by_team,
+            team=away_team,
+            dest_rows=grid_cfg.dest_rows,
+            dest_cols=grid_cfg.dest_cols,
         )
         with surf_home:
             fig_home = draw_xp_destination_surface(
                 home_xp,
                 home_count,
                 title=f"{home_team}",
+                dest_cols=grid_cfg.dest_cols,
+                dest_rows=grid_cfg.dest_rows,
             )
             st.pyplot(fig_home, clear_figure=True, use_container_width=True)
         with surf_away:
@@ -5400,6 +5465,8 @@ def render_estudo_section() -> None:
                 away_xp,
                 away_count,
                 title=f"{away_team}",
+                dest_cols=grid_cfg.dest_cols,
+                dest_rows=grid_cfg.dest_rows,
             )
             st.pyplot(fig_away, clear_figure=True, use_container_width=True)
 
@@ -5429,7 +5496,11 @@ def render_estudo_section() -> None:
     player_name = str(ranking.loc[ranking["player_id"] == player_id, "player_name"].iloc[0])
     player_team = str(ranking.loc[ranking["player_id"] == player_id, "team"].iloc[0])
     team_xp, _ = xpe.team_surface_for_player(
-        xp_grids_by_team, count_grids_by_team, team=player_team,
+        xp_grids_by_team,
+        count_grids_by_team,
+        team=player_team,
+        dest_rows=grid_cfg.dest_rows,
+        dest_cols=grid_cfg.dest_cols,
     )
     top_passes = xpe.top_xp_passes_for_player(passes, player_id, n=5, model=selected_model)
 
@@ -5470,6 +5541,8 @@ def render_estudo_section() -> None:
             player_name=player_name,
             match_label=f"{match_title} · {player_team}",
             xp_grid=team_xp,
+            dest_cols=grid_cfg.dest_cols,
+            dest_rows=grid_cfg.dest_rows,
         )
         st.pyplot(fig_top, clear_figure=True, use_container_width=True)
 

@@ -49,15 +49,20 @@ def draw_xp_destination_surface(
     count_grid: np.ndarray,
     *,
     title: str,
+    dest_cols: int = XP_GRID_COLS,
+    dest_rows: int = XP_GRID_ROWS,
 ):
     """Background heatmap of destination-cell xP weights for the match."""
     fig, ax, pitch = _base_pitch()
-    x_bins = np.linspace(0.0, FIELD_X, XP_GRID_COLS + 1)
-    y_bins = np.linspace(0.0, FIELD_Y, XP_GRID_ROWS + 1)
+    rows, cols = xp_grid.shape
+    dest_rows = rows
+    dest_cols = cols
+    x_bins = np.linspace(0.0, FIELD_X, dest_cols + 1)
+    y_bins = np.linspace(0.0, FIELD_Y, dest_rows + 1)
     vmax = max(float(xp_grid.max()), 1.0)
     norm = Normalize(vmin=0.0, vmax=vmax)
-    for iy in range(XP_GRID_ROWS):
-        for ix in range(XP_GRID_COLS):
+    for iy in range(dest_rows):
+        for ix in range(dest_cols):
             if count_grid[iy, ix] <= 0:
                 continue
             rect = Rectangle(
@@ -86,17 +91,20 @@ def draw_top_xp_passes_map(
     player_name: str,
     match_label: str,
     xp_grid: np.ndarray | None = None,
+    dest_cols: int = XP_GRID_COLS,
+    dest_rows: int = XP_GRID_ROWS,
 ):
     """Top-N xP passes for one player, color-coded by xP value."""
     fig, ax, pitch = _base_pitch()
 
     if xp_grid is not None:
-        x_bins = np.linspace(0.0, FIELD_X, XP_GRID_COLS + 1)
-        y_bins = np.linspace(0.0, FIELD_Y, XP_GRID_ROWS + 1)
+        dest_rows, dest_cols = xp_grid.shape
+        x_bins = np.linspace(0.0, FIELD_X, dest_cols + 1)
+        y_bins = np.linspace(0.0, FIELD_Y, dest_rows + 1)
         vmax = max(float(xp_grid.max()), 1.0)
         norm = Normalize(vmin=0.0, vmax=vmax)
-        for iy in range(XP_GRID_ROWS):
-            for ix in range(XP_GRID_COLS):
+        for iy in range(dest_rows):
+            for ix in range(dest_cols):
                 rect = Rectangle(
                     (x_bins[ix], y_bins[iy]),
                     x_bins[ix + 1] - x_bins[ix],
